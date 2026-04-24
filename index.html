@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zombie Apolycase</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg:       #D4C5B0;
+        --text:     #2C2416;
+        --rust:     #8B3A2A;
+        --orange:   #C4622D;
+        --amber:    #E8A030;
+        --blood:    #CC1A1A;
+        --iron:     #7A7060;
+        --ember:    #FF6B35;
+        --font:     'Russo One', sans-serif;
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #C8B8A0; overflow: hidden; user-select: none; }
+      #game-canvas { display: block; position: fixed; inset: 0; }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        font-family: 'Russo One', sans-serif;
+        z-index: 10;
+      }
+
+      /* Full-screen centered overlays */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(18, 12, 8, 0.90);
+        z-index: 30;
+        overflow-y: auto;
+        padding: 20px;
+      }
+
+      /* Break panel — slide-in from right, NOT a centered overlay */
+      #break-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 400px;
+        z-index: 30;
+        overflow-y: auto;
+        background: transparent;
+        transform: translateX(100%);
+        transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+        pointer-events: none;
+        display: block !important; /* override .hidden display:none */
+      }
+      #break-panel.panel-open {
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+      #break-panel.panel-hidden {
+        display: none !important;
+      }
+      #break-panel::before {
+        content: '';
+        position: absolute;
+        left: -32px;
+        top: 0;
+        width: 32px;
+        height: 100%;
+        background: linear-gradient(to right, transparent, rgba(20,12,8,0.5));
+        pointer-events: none;
+      }
+
+      /* Build context menu — positioned absolutely by JS */
+      #build-context-menu {
+        position: fixed;
+        z-index: 40;
+      }
+
+      .hidden { display: none !important; }
+
+      button:hover:not(:disabled) { filter: brightness(1.3); }
+      button:disabled { opacity: 0.4; cursor: not-allowed !important; }
+      button { transition: filter 0.1s; }
+
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: #1a0e08; }
+      ::-webkit-scrollbar-thumb { background: #8B3A2A; border-radius: 2px; }
+
+      /* Wave announce */
+      @keyframes waveAnnounce {
+        0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
+        15%  { opacity: 1; transform: translateX(-50%) scale(1.05); }
+        25%  { transform: translateX(-50%) scale(1); }
+        75%  { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      @keyframes waveClear {
+        0%   { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+        70%  { opacity: 1; }
+        100% { opacity: 0; }
+      }
+
+      #hud-wave-announce {
+        position: absolute;
+        top: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: 'Russo One', sans-serif;
+        font-size: 72px;
+        color: #E8A030;
+        text-shadow: 0 0 30px rgba(232,160,48,0.8), 0 4px 0 #8B3A2A;
+        pointer-events: none;
+        display: none;
+        letter-spacing: 4px;
+        white-space: nowrap;
+        z-index: 5;
+      }
+      #hud-wave-announce.announcing {
+        display: block;
+        animation: waveAnnounce 2.5s ease-in-out forwards;
+      }
+      #hud-wave-announce.clearing {
+        display: block;
+        animation: waveClear 1.8s ease-in-out forwards;
+      }
+
+      /* Boss border flash */
+      @keyframes bossFlash {
+        0%, 100% { box-shadow: inset 0 0 0px #CC1A1A; }
+        50%       { box-shadow: inset 0 0 40px #CC1A1A, inset 0 0 80px rgba(204,26,26,0.3); }
+      }
+      #hud-boss-warning {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      #hud-boss-warning.boss-active {
+        animation: bossFlash 1s ease-in-out infinite;
+      }
+
+      /* Level-up flash */
+      .level-flash {
+        animation: levelFlash 1.5s ease-out forwards;
+      }
+      @keyframes levelFlash {
+        0%   { text-shadow: 0 0 20px #E8A030, 0 0 40px #E8A030; color: #E8A030; }
+        100% { text-shadow: none; color: #D4C5B0; }
+      }
+
+      /* Skill card hover */
+      .skill-choice {
+        transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      }
+      .skill-choice:hover {
+        border-color: #88EEFF !important;
+        background: rgba(136,238,255,0.1) !important;
+        transform: translateY(-2px);
+      }
+
+      /* Game over animations */
+      @keyframes goTitleIn {
+        from { opacity: 0; transform: scaleY(0.1) scaleX(1.5); letter-spacing: 40px; }
+        to   { opacity: 1; transform: scaleY(1) scaleX(1); letter-spacing: 6px; }
+      }
+      @keyframes goPulse {
+        0%, 100% { text-shadow: 0 0 20px #CC1A1A; }
+        50%       { text-shadow: 0 0 50px #CC1A1A, 0 0 80px rgba(204,26,26,0.6); }
+      }
+      @keyframes goStatIn {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      #gameover-screen {
+        backdrop-filter: blur(4px);
+      }
+      .go-title {
+        font-family: 'Russo One', sans-serif;
+        font-size: 52px;
+        color: #CC1A1A;
+        letter-spacing: 6px;
+        animation: goTitleIn 0.6s ease-out forwards, goPulse 2s ease-in-out 0.6s infinite;
+        text-align: center;
+      }
+      .go-stat {
+        opacity: 0;
+        animation: goStatIn 0.4s ease-out forwards;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game-canvas"></canvas>
+
+    <!-- In-game HUD (always on top of canvas, pointer-events: none) -->
+    <div id="hud"></div>
+
+    <!-- Full-screen overlays -->
+    <div id="tutorial-overlay" class="overlay"></div>
+    <div id="break-panel"      class="panel-hidden"></div>
+    <div id="skill-modal"      class="overlay hidden"></div>
+    <div id="gameover-screen"  class="overlay hidden"></div>
+
+    <!-- Mid-game build context menu (right-click on empty ground) -->
+    <div id="build-context-menu" class="hidden"></div>
+
+    <!-- Tower inspect popup (right-click on existing tower) -->
+    <div id="tower-inspect-menu" style="position:fixed;z-index:40;" class="hidden"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
