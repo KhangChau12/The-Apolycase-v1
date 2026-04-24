@@ -92,8 +92,9 @@ export class Game {
     this.buildContextMenu = new BuildContextMenu(this)
     this.towerInspectMenu = new TowerInspectMenu(this)
 
-    this.resources.add({ coins: 50, iron: 30, energyCore: 5 })
-    this.startWave()
+    this.resources.add({ coins: 50, iron: 40, energyCore: 5 })
+    this.enterBreak(10, false)
+    this.hud.showMessage('Prepare your defenses. Wave 1 starts in 10s', T.amber, 2200)
     this.bindCanvasEvents()
 
     // Tutorial is shown first; game loop starts only after player closes it
@@ -132,11 +133,12 @@ export class Game {
     }
   }
 
-  enterBreak(): void {
+  enterBreak(duration = this.waveManager.breakDuration, showPanel = true): void {
     this.paused = false
     this.phase = 'break'
-    this.waveManager.enterBreak()
-    this.breakPanel.show()
+    this.waveManager.enterBreak(duration)
+    if (showPanel) this.breakPanel.show()
+    else this.breakPanel.hide()
   }
 
   exitBreak(): void {
@@ -260,6 +262,10 @@ export class Game {
     // Player can still move and aim during break
     this.player.update(dt, this.input, this.camera, this)
     this.camera.follow(this.player.x, this.player.y, WORLD_W, WORLD_H)
+
+    // Bullets should keep traveling during break.
+    for (const b of this.bullets) b.update(dt)
+    this.bullets = this.bullets.filter(b => b.alive)
 
     // Drops still expire
     for (const d of this.drops) d.update(dt)

@@ -5,6 +5,7 @@ export class WaveManager {
   phase: WavePhase = 'wave'
   breakTimeLeft = 0
   readonly breakDuration = 15
+  currentBreakDuration = this.breakDuration
   readonly bossEvery = 5
 
   startNextWave(): void {
@@ -16,9 +17,10 @@ export class WaveManager {
     return this.waveIndex > 0 && this.waveIndex % this.bossEvery === 0
   }
 
-  enterBreak(): void {
+  enterBreak(duration = this.breakDuration): void {
     this.phase = 'break'
-    this.breakTimeLeft = this.breakDuration
+    this.currentBreakDuration = duration
+    this.breakTimeLeft = duration
   }
 
   skipBreak(): void {
@@ -28,7 +30,6 @@ export class WaveManager {
   update(dt: number): void {
     if (this.phase === 'break') {
       this.breakTimeLeft = Math.max(0, this.breakTimeLeft - dt)
-      if (this.breakTimeLeft === 0) this.startNextWave()
     }
   }
 }

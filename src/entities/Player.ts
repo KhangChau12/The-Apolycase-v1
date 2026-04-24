@@ -118,7 +118,7 @@ export class Player {
   }
 
   private updateReload(dt: number, input: InputManager, game: GameRef): void {
-    if (input.isDown('KeyR') && !this.reloading && this.ammoInMag < this.currentWeapon.magSize) {
+    if (input.consumePress('KeyR') && !this.reloading && this.ammoInMag < this.currentWeapon.magSize) {
       this.startReload(game)
     }
     if (this.reloading) {

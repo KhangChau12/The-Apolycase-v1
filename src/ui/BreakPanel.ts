@@ -1,6 +1,5 @@
 import { Game } from '../core/Game'
 import { WEAPON_PROFILES } from '../data/weaponData'
-import { TOWER_PROFILES, TowerType } from '../towers/TowerTypes'
 import { T } from './theme'
 
 interface StatUpgradeDef {
@@ -209,23 +208,6 @@ export class BreakPanel {
             </div>
           </div>
 
-          <!-- Build towers -->
-          <div style="${S.section('#4CAF50')}">
-            <div style="${S.sectionTitle('#4CAF50')}">BUILD TOWERS</div>
-            <div style="display:flex;flex-direction:column;gap:4px;">
-              ${Object.values(TOWER_PROFILES).map(tp => {
-                const canBuild = res.iron >= tp.costIron && res.energyCore >= tp.costCore
-                return `<button class="bp-build-tower" data-type="${tp.type}"
-                  style="${S.btn('#4CAF50', canBuild)};display:flex;justify-content:space-between;"
-                  ${canBuild?'':'disabled'}>
-                  <span>${tp.label}</span>
-                  <span style="color:${T.iron};font-size:10px;">⬡${tp.costIron}${tp.costCore>0?` ◈${tp.costCore}`:''}</span>
-                </button>`
-              }).join('')}
-            </div>
-            ${g.towers.length > 0 ? `<div style="color:${T.iron};font:9px ${T.font};margin-top:6px;">Right-click tower on map to upgrade or sell.</div>` : ''}
-          </div>
-
           <!-- Territory -->
           <div style="${S.section(T.crystalCyan)}">
             <div style="${S.sectionTitle(T.crystalCyan)}">TERRITORY</div>
@@ -305,16 +287,6 @@ export class BreakPanel {
         this.statPurchases[idx]++
         g.hud.showMessage(u.label, T.amber)
         this.show()
-      })
-    })
-
-    this.el.querySelectorAll('.bp-build-tower').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const type = (btn as HTMLElement).dataset.type as TowerType
-        g.buildMode = true
-        g.pendingTowerType = type
-        this.hide()
-        g.hud.showMessage(`Place ${TOWER_PROFILES[type].label} — Click map · Esc to cancel`, '#4CAF50')
       })
     })
 

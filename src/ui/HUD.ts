@@ -234,7 +234,7 @@ export class HUD {
       if (g.phase === 'break') {
         breakStrip.style.display = 'block'
         const fillStrip = breakStrip.querySelector('#hud-break-fill-strip') as HTMLElement | null
-        const total = w.breakDuration
+        const total = w.currentBreakDuration
         const left  = w.breakTimeLeft
         const pct   = Math.max(0, Math.min(1, left / total)) * 100
         if (fillStrip) fillStrip.style.width = `${pct}%`
