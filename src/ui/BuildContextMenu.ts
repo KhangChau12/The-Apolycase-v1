@@ -99,6 +99,7 @@ export class BuildContextMenu {
       if (e.code === 'Escape') {
         this.hide()
         this.game.buildMode = false
+        this.game.barrierMode = false
         this.game.pendingTowerType = null
       }
     })

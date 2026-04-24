@@ -14,7 +14,9 @@ export class InputManager {
       this.mouse.x = e.clientX
       this.mouse.y = e.clientY
     })
-    window.addEventListener('mousedown', e => { if (e.button === 0) this.mouse.down = true })
+    window.addEventListener('mousedown', e => {
+      if (e.button === 0 && (e.target as HTMLElement).tagName === 'CANVAS') this.mouse.down = true
+    })
     window.addEventListener('mouseup',   e => { if (e.button === 0) this.mouse.down = false })
   }
 

@@ -4,6 +4,7 @@ import { Player } from '../entities/Player'
 import { Zombie } from '../entities/Zombie'
 import { HomeBase } from '../entities/HomeBase'
 import { Tower } from '../towers/Tower'
+import { WorkerEntity } from '../entities/WorkerEntity'
 import { TOWER_PROFILES, TowerType } from '../towers/TowerTypes'
 import { WaveManager } from '../systems/WaveManager'
 import { ResourceManager } from '../systems/ResourceManager'
@@ -22,6 +23,8 @@ import { DropItem } from '../entities/DropItem'
 import { Bullet } from '../entities/Bullet'
 import { spawnWave } from '../systems/Spawner'
 import { dist } from '../utils/math'
+import { PLAYER_SKILL_POOL } from '../data/playerSkillPool'
+import { BASE_SKILL_POOL } from '../data/baseSkillPool'
 
 const WORLD_W = 3000
 const WORLD_H = 3000
@@ -46,6 +49,7 @@ export class Game {
 
   zombies: Zombie[] = []
   towers: Tower[] = []
+  workers: WorkerEntity[] = []
   bullets: Bullet[] = []
   drops: DropItem[] = []
   readonly effects: EffectsManager
@@ -59,6 +63,7 @@ export class Game {
 
   phase: GamePhase = 'playing'
   buildMode = false
+  barrierMode = false
   pendingTowerType: TowerType | null = null
   paused = false
   inspectedTower: Tower | null = null
@@ -167,13 +172,15 @@ export class Game {
     const cost = this.territory.crystalCostForNextExpansion(this.resources.res.crystal)
     if (!this.resources.spend({ crystal: cost })) return
     this.territory.expand()
-    const options = this.skills.unlockSlot()
+    const pool = this.base.appliedBaseSkills
+    const available = BASE_SKILL_POOL.filter(s => (pool.get(s.id) ?? 0) < s.maxStacks)
+    const options = [...available].sort(() => Math.random() - 0.5).slice(0, 3)
+      .map(s => ({ id: s.id, label: s.label, description: s.description, icon: s.icon }))
     this.breakPanel.hide()
-    this.skillModal.show(options, (chosen) => {
-      const slot = this.skills.unlockedSlots - 1
-      this.skills.equip(slot, chosen)
+    this.skillModal.showGeneric(options, (id) => {
+      this.base.applyBaseSkill(id as import('../data/baseSkillPool').BaseSkillId)
       this.breakPanel.show()
-    })
+    }, 'TERRITORY EXPANDED', 'CHOOSE 1 BASE UPGRADE', T.crystalCyan)
     this.hud.showMessage(`Territory expanded! Radius: ${this.territory.radius}`, '#8ef')
   }
 
@@ -188,16 +195,25 @@ export class Game {
       return
     }
     this.resources.spend({ iron: profile.costIron, energyCore: profile.costCore })
-    this.towers.push(new Tower(worldX, worldY, profile))
+    const tower = new Tower(worldX, worldY, profile)
+    this.towers.push(tower)
+    if (type === 'repairTower') {
+      this.workers.push(new WorkerEntity(tower))
+    }
     this.hud.showMessage(`${profile.label} placed`, '#8f8')
   }
 
   private bindCanvasEvents(): void {
-    // Left click: place tower if buildMode active (from BreakPanel flow)
+    // Left click: place tower if buildMode or barrierMode active
     this.canvas.addEventListener('click', (e) => {
       if (this.buildContextMenu.visible) return
-      if (!this.buildMode || !this.pendingTowerType) return
+      if (this.paused) return
       const world = this.camera.toWorld(e.clientX, e.clientY)
+      if (this.barrierMode) {
+        this.placeTower(world.x, world.y, 'barricade')
+        return
+      }
+      if (!this.buildMode || !this.pendingTowerType) return
       this.placeTower(world.x, world.y, this.pendingTowerType)
     })
 
@@ -217,10 +233,20 @@ export class Game {
       }
     })
 
-    // Escape cancels build mode / closes upgrade panel and tower inspect
+    // Escape cancels build/barrier mode / closes upgrade panel and tower inspect
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyB' && this.phase !== 'gameover' && !this.paused) {
+        this.barrierMode = !this.barrierMode
+        this.buildMode = false
+        this.pendingTowerType = null
+        this.hud.showMessage(
+          this.barrierMode ? 'Barrier mode ON · Click to place (⬡3) · B or Esc to cancel' : 'Barrier mode OFF',
+          this.barrierMode ? T.orange : T.iron,
+        )
+      }
       if (e.code === 'Escape') {
         this.buildMode = false
+        this.barrierMode = false
         this.pendingTowerType = null
         this.buildContextMenu.hide()
         this.towerInspectMenu.hide()
@@ -307,22 +333,52 @@ export class Game {
       if (!b.alive) continue
       for (const z of this.zombies) {
         if (!z.alive) continue
-        if (dist(b.x, b.y, z.x, z.y) < z.radius) {
+        if (dist(b.x, b.y, z.x, z.y) < z.radius + b.radius) {
+          if (b.hitZombies.has(z)) continue
+          b.hitZombies.add(z)
           const hitAngle = b.angle
           z.takeDamage(b.damage)
-          b.alive = false
+          if (b.isBurning) {
+            z.burnTimer = b.burnDps > 0 ? 3 : 0
+            z.burnDps = b.burnDps
+          }
+          if (b.isExplosive) {
+            for (const ez of this.zombies) {
+              if (!ez.alive || ez === z) continue
+              if (dist(b.x, b.y, ez.x, ez.y) < 60) {
+                ez.takeDamage(b.damage * 0.5)
+                if (!ez.alive) this.onZombieDead(ez, hitAngle)
+              }
+            }
+            this.effects.spawnRadialBurst(b.x, b.y)
+          }
           this.effects.spawnHitSpark(z.x, z.y, hitAngle)
           if (!z.alive) this.onZombieDead(z, hitAngle)
-          break
+          // Fireball and penetrating bullets pass through; others die on first hit
+          if (!b.isFireball && !b.isPenetrating) {
+            b.alive = false
+            break
+          }
         }
       }
     }
 
+    // burn DoT
+    for (const z of this.zombies) {
+      if (!z.alive || z.burnTimer <= 0) continue
+      z.takeDamage(z.burnDps * dt)
+      z.burnTimer -= dt
+      if (!z.alive) this.onZombieDead(z)
+    }
+
     // towers
     for (const t of this.towers) {
-      t.update(dt, this.zombies, this.base, this.bullets, this.skills)
+      t.update(dt, this.zombies, this.base, this.bullets, this.effects)
     }
     this.towers = this.towers.filter(t => t.alive)
+    // workers
+    for (const w of this.workers) w.update(dt, this.towers)
+    this.workers = this.workers.filter(w => w.homeNode.alive)
 
     // base aura: heal allies, DOT zombies
     this.base.applyAura(dt, this.zombies, this.towers, this.player)
@@ -367,11 +423,24 @@ export class Game {
     this.player.kills++
     this.drops.push(new DropItem(z.x, z.y, z.getDrops()))
     this.effects.spawnBloodSplatter(z.x, z.y, killAngle, z.archetype)
-    const prevLevel = this.player.stats.level
-    this.player.addXp(z.xpReward)
-    if (this.player.stats.level > prevLevel) {
+    this.player.addXp(z.xpReward, () => {
       this.hud.triggerLevelUp()
-    }
+      this.showPlayerLevelUpModal()
+    })
+  }
+
+  private showPlayerLevelUpModal(): void {
+    const pool = this.player.appliedPlayerSkills
+    const available = PLAYER_SKILL_POOL.filter(s => (pool.get(s.id) ?? 0) < s.maxStacks)
+    if (available.length === 0) return
+    // Pick 3 random options (no duplicates)
+    const shuffled = [...available].sort(() => Math.random() - 0.5).slice(0, 3)
+    const options = shuffled.map(s => ({ id: s.id, label: s.label, description: s.description, icon: s.icon }))
+    this.paused = true
+    this.skillModal.showGeneric(options, (id) => {
+      this.player.applyLevelUpSkill(id as import('../data/playerSkillPool').PlayerSkillId)
+      this.paused = false
+    }, 'LEVEL UP!', 'CHOOSE 1 PASSIVE SKILL', T.amber)
   }
 
   private tryPickupDrops(): void {
@@ -423,6 +492,7 @@ export class Game {
 
     this.renderWorld(ctx)
     this.renderTowers(ctx)
+    this.renderWorkers(ctx)
     this.renderDrops(ctx)
     this.renderBullets(ctx)
     this.renderZombies(ctx)
@@ -516,52 +586,52 @@ export class Game {
 
   private renderTowers(ctx: CanvasRenderingContext2D): void {
     const styleMap: Record<string, { fill: string; stroke: string }> = {
-      guard:      { fill: '#1a100a', stroke: '#C4622D' },
-      barricade:  { fill: '#2a1a0a', stroke: '#8B3A2A' },
-      shockPylon: { fill: '#0a0e1a', stroke: '#7788FF' },
-      sniperPost: { fill: '#1a0e00', stroke: '#E8A030' },
-      repairNode: { fill: '#0a1810', stroke: '#4CAF50' },
+      barricade:      { fill: '#2a1a0a', stroke: '#8B3A2A' },
+      fireTower:      { fill: '#1a0800', stroke: '#FF6820' },
+      electricTower:  { fill: '#0a0e1a', stroke: '#88eeff' },
+      repairTower:    { fill: '#0a1810', stroke: '#4CAF50' },
+      machineGunTower:{ fill: '#1a100a', stroke: '#E8A030' },
     }
     const rangeRingColor: Record<string, string> = {
-      guard:      'rgba(196,98,45,0.12)',
-      barricade:  'rgba(139,58,42,0.12)',
-      shockPylon: 'rgba(119,136,255,0.12)',
-      sniperPost: 'rgba(232,160,48,0.12)',
-      repairNode: 'rgba(76,175,80,0.12)',
+      barricade:      'rgba(139,58,42,0.12)',
+      fireTower:      'rgba(255,104,32,0.12)',
+      electricTower:  'rgba(136,238,255,0.12)',
+      repairTower:    'rgba(76,175,80,0.12)',
+      machineGunTower:'rgba(232,160,48,0.12)',
     }
 
-    // Tower type icons drawn in canvas (crosshair, wall, lightning, scope, plus)
     const drawIcon = (ctx: CanvasRenderingContext2D, type: string, stroke: string) => {
       ctx.strokeStyle = stroke
       ctx.lineWidth = 1.5
       ctx.beginPath()
-      if (type === 'guard') {
-        // Crosshair
-        ctx.moveTo(-5, 0); ctx.lineTo(5, 0)
-        ctx.moveTo(0, -5); ctx.lineTo(0, 5)
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.arc(0, 0, 3, 0, Math.PI * 2)
-        ctx.stroke()
-      } else if (type === 'barricade') {
-        // Horizontal bars
+      if (type === 'barricade') {
         ctx.moveTo(-6, -3); ctx.lineTo(6, -3)
         ctx.moveTo(-6, 0);  ctx.lineTo(6, 0)
         ctx.moveTo(-6, 3);  ctx.lineTo(6, 3)
         ctx.stroke()
-      } else if (type === 'shockPylon') {
-        // Lightning bolt
-        ctx.moveTo(2, -6); ctx.lineTo(-2, 0); ctx.lineTo(2, 0); ctx.lineTo(-2, 6)
+      } else if (type === 'fireTower') {
+        // Three upward flame curves
+        ctx.moveTo(-4, 5); ctx.quadraticCurveTo(-4, -2, 0, -6)
+        ctx.moveTo(0, 5);  ctx.quadraticCurveTo(2, 0, 0, -6)
+        ctx.moveTo(4, 5);  ctx.quadraticCurveTo(6, -2, 3, -5)
         ctx.stroke()
-      } else if (type === 'sniperPost') {
-        // Scope / long barrel
-        ctx.moveTo(-7, 0); ctx.lineTo(7, 0)
-        ctx.moveTo(3, -3); ctx.lineTo(3, 3)
+      } else if (type === 'electricTower') {
+        // Zigzag lightning bolt
+        ctx.moveTo(3, -7); ctx.lineTo(-2, -1); ctx.lineTo(2, -1); ctx.lineTo(-3, 6)
         ctx.stroke()
-      } else if (type === 'repairNode') {
-        // Plus sign
+      } else if (type === 'repairTower') {
+        // Wrench cross
         ctx.moveTo(-5, 0); ctx.lineTo(5, 0)
         ctx.moveTo(0, -5); ctx.lineTo(0, 5)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.arc(0, 0, 2, 0, Math.PI * 2)
+        ctx.stroke()
+      } else if (type === 'machineGunTower') {
+        // Double barrel lines
+        ctx.moveTo(-7, -2); ctx.lineTo(7, -2)
+        ctx.moveTo(-7, 2);  ctx.lineTo(7, 2)
+        ctx.moveTo(5, -5);  ctx.lineTo(5, 5)
         ctx.stroke()
       }
     }
@@ -630,6 +700,10 @@ export class Game {
     }
   }
 
+  private renderWorkers(ctx: CanvasRenderingContext2D): void {
+    for (const w of this.workers) w.render(ctx)
+  }
+
   // ── Zombies ───────────────────────────────────────────────────────
 
   private renderZombies(ctx: CanvasRenderingContext2D): void {
@@ -662,10 +736,12 @@ export class Game {
         ctx.shadowBlur = 16
       }
 
+      ctx.rotate(z.angle + Math.PI / 2)
       ctx.beginPath()
-      ctx.arc(0, 0, z.radius, 0, Math.PI * 2)
+      this.drawZombieShape(ctx, z.archetype, z.radius)
       ctx.fill()
       ctx.stroke()
+      ctx.rotate(-(z.angle + Math.PI / 2))
 
       if (isBoss) {
         // Outer pulsing ring
@@ -694,6 +770,32 @@ export class Game {
 
       ctx.restore()
     }
+  }
+
+  private getZombiePolygonSides(archetype: string): number {
+    switch (archetype) {
+      case 'fast':    return 3
+      case 'tank':    return 4
+      case 'armored': return 5
+      case 'boss':    return 6
+      default:        return 8
+    }
+  }
+
+  private drawZombieShape(ctx: CanvasRenderingContext2D, archetype: string, radius: number): void {
+    const sides = this.getZombiePolygonSides(archetype)
+    if (sides >= 8) {
+      ctx.arc(0, 0, radius, 0, Math.PI * 2)
+      return
+    }
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2 - Math.PI / 2
+      const px = Math.cos(a) * radius
+      const py = Math.sin(a) * radius
+      if (i === 0) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    }
+    ctx.closePath()
   }
 
   // ── Player ────────────────────────────────────────────────────────
@@ -733,6 +835,22 @@ export class Game {
 
   private renderBullets(ctx: CanvasRenderingContext2D): void {
     for (const b of this.bullets) {
+      if (b.isFireball) {
+        // Large glowing orange fireball
+        ctx.save()
+        ctx.shadowColor = '#FF6820'
+        ctx.shadowBlur = 14
+        ctx.fillStyle = '#FF6820'
+        ctx.beginPath()
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#ffcc44'
+        ctx.beginPath()
+        ctx.arc(b.x, b.y, b.radius * 0.45, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+        continue
+      }
       // Trailing dot
       ctx.fillStyle = 'rgba(255,107,53,0.35)'
       ctx.beginPath()
@@ -768,22 +886,48 @@ export class Game {
     }
   }
 
-  // ── Build preview ghost when buildMode active (from BreakPanel) ───
+  // ── Build preview ghost when buildMode or barrierMode active ───────
 
   private renderBuildPreview(ctx: CanvasRenderingContext2D): void {
-    if (!this.buildMode || !this.pendingTowerType) return
+    const isBarrier = this.barrierMode
+    const isTower = this.buildMode && this.pendingTowerType
+    if (!isBarrier && !isTower) return
     const world = this.camera.toWorld(this.input.mouse.x, this.input.mouse.y)
     const inTerritory = this.territory.isInsideTerritory(world.x, world.y, BASE_X, BASE_Y)
     ctx.save()
     ctx.translate(world.x, world.y)
-    ctx.globalAlpha = 0.5
-    ctx.fillStyle = inTerritory ? '#2a4a2a' : '#4a1a1a'
-    ctx.strokeStyle = inTerritory ? '#4f8' : '#f44'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.rect(-14, -14, 28, 28)
-    ctx.fill()
-    ctx.stroke()
+    ctx.globalAlpha = 0.55
+    if (isBarrier) {
+      ctx.fillStyle = inTerritory ? 'rgba(139,58,42,0.35)' : 'rgba(180,40,40,0.25)'
+      ctx.strokeStyle = inTerritory ? T.rust : '#f44'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.rect(-14, -14, 28, 28)
+      ctx.fill()
+      ctx.stroke()
+      // horizontal bars icon
+      ctx.strokeStyle = inTerritory ? T.amber : '#f88'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.moveTo(-9, -5); ctx.lineTo(9, -5)
+      ctx.moveTo(-9, 0);  ctx.lineTo(9, 0)
+      ctx.moveTo(-9, 5);  ctx.lineTo(9, 5)
+      ctx.stroke()
+      // cost label
+      ctx.globalAlpha = 0.9
+      ctx.fillStyle = T.amber
+      ctx.font = `bold 9px ${T.font}`
+      ctx.textAlign = 'center'
+      ctx.fillText('⬡3', 0, 28)
+    } else {
+      ctx.fillStyle = inTerritory ? '#2a4a2a' : '#4a1a1a'
+      ctx.strokeStyle = inTerritory ? '#4f8' : '#f44'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.rect(-14, -14, 28, 28)
+      ctx.fill()
+      ctx.stroke()
+    }
     ctx.restore()
   }
 
@@ -791,17 +935,20 @@ export class Game {
 
   private renderBuildHint(ctx: CanvasRenderingContext2D): void {
     if (this.phase !== 'playing') return
-    const text = this.buildMode
-      ? `Placing ${this.pendingTowerType ?? '?'} — Left Click to place · Esc to cancel`
-      : 'Right Click → Build Tower'
+    const active = this.buildMode || this.barrierMode
+    const text = this.barrierMode
+      ? 'Barrier mode — Click to place (⬡3) · B or Esc to cancel'
+      : this.buildMode
+        ? `Placing ${this.pendingTowerType ?? '?'} — Left Click to place · Esc to cancel`
+        : 'Right Click → Build Tower  ·  B → Barricade'
     ctx.save()
     ctx.fillStyle = 'rgba(20,12,8,0.85)'
     ctx.fillRect(0, this.screenH - 92, this.screenW, 2)
-    ctx.fillStyle = this.buildMode ? T.orange : T.iron
+    ctx.fillStyle = active ? T.orange : T.iron
     ctx.font = `12px ${T.font}`
     ctx.textAlign = 'right'
     ctx.fillText(text, this.screenW - 16, this.screenH - 100)
-    if (this.buildMode) {
+    if (active) {
       ctx.fillStyle = T.ember
       ctx.fillRect(0, this.screenH - 92, this.screenW, 2)
     }

@@ -99,6 +99,24 @@ export class EffectsManager {
     }
   }
 
+  spawnLightningChain(points: { x: number; y: number }[]): void {
+    for (let i = 0; i + 1 < points.length; i++) {
+      const a = points[i], b = points[i + 1]
+      const steps = 6
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps
+        const cx = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 20
+        const cy = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 20
+        this.particles.push(new Particle(cx, cy, '#88eeff', 2 + Math.random() * 2, 0, {
+          dirAngle: 0,
+          spread: Math.PI * 2,
+          sizeDecay: 12,
+          life: 0.1 + Math.random() * 0.1,
+        }))
+      }
+    }
+  }
+
   triggerDamageFlash(): void {
     this.screenFlashAlpha = 0.35
     this.screenFlashColor = '204,26,26'

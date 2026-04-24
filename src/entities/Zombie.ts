@@ -27,6 +27,9 @@ export class Zombie {
   xpReward: number
   alive = true
   auraKill = false   // set by Tower.applyAura when aura DOT delivers killing blow
+  angle = 0          // movement direction in radians, used for polygon rotation
+  burnTimer = 0
+  burnDps = 0
 
   private attackCooldown = 0
   private attackRange: number
@@ -70,9 +73,9 @@ export class Zombie {
       const target = nearTower && dist(this.x, this.y, nearTower.x, nearTower.y) < 120
         ? nearTower
         : base
-      const angle = angleTo(this.x, this.y, target.x, target.y)
-      this.x += Math.cos(angle) * this.speed * dt
-      this.y += Math.sin(angle) * this.speed * dt
+      this.angle = angleTo(this.x, this.y, target.x, target.y)
+      this.x += Math.cos(this.angle) * this.speed * dt
+      this.y += Math.sin(this.angle) * this.speed * dt
     }
   }
 

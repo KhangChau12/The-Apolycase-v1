@@ -3,6 +3,7 @@ import { Camera } from '../core/Camera'
 import { Bullet } from './Bullet'
 import { clamp, angleTo } from '../utils/math'
 import { WEAPON_PROFILES, WeaponProfile } from '../data/weaponData'
+import { PlayerSkillId, PLAYER_SKILL_POOL } from '../data/playerSkillPool'
 
 export interface PlayerStats {
   maxHp: number
@@ -43,6 +44,13 @@ export class Player {
     xp: 0,
     xpToNext: 100,
   }
+
+  // Skill system
+  appliedPlayerSkills: Map<PlayerSkillId, number> = new Map()
+  bulletCount = 1
+  bulletPenetrating = false
+  bulletExplosion = false
+  fireRateMultiplier = 1.0
 
   currentWeapon: WeaponProfile
   ammoInMag: number
@@ -97,24 +105,29 @@ export class Player {
     }
 
     const w = this.currentWeapon
-    const pellets = w.class === 'shotgun' ? 8 : 1
+    const basePellets = w.class === 'shotgun' ? 8 : 1
+    const pellets = basePellets * this.bulletCount
 
     for (let i = 0; i < pellets; i++) {
-      const spread = (Math.random() - 0.5) * (w.spread * Math.PI / 180)
+      const extraSpread = this.bulletCount > 1 ? (i % 2 === 0 ? -0.15 : 0.15) : 0
+      const spread = (Math.random() - 0.5) * (w.spread * Math.PI / 180) + extraSpread
       const angle = this.angle + spread
       const dmg = this.calcDamage()
-      game.bullets.push(new Bullet(
+      const b = new Bullet(
         this.x + Math.cos(this.angle) * 18,
         this.y + Math.sin(this.angle) * 18,
         angle,
         w.bulletSpeed,
         dmg,
-        'player'
-      ))
+        'player',
+      )
+      b.isPenetrating = this.bulletPenetrating
+      b.isExplosive = this.bulletExplosion
+      game.bullets.push(b)
     }
 
     this.ammoInMag--
-    this.fireCooldown = 1 / w.fireRate
+    this.fireCooldown = 1 / (w.fireRate * this.fireRateMultiplier)
   }
 
   private updateReload(dt: number, input: InputManager, game: GameRef): void {
@@ -159,16 +172,22 @@ export class Player {
     this.invincibleTimer = 0.8
   }
 
-  addXp(amount: number): void {
+  addXp(amount: number, onLevelUp?: () => void): void {
     this.stats.xp += amount
-    while (this.stats.xp >= this.stats.xpToNext) {
+    if (this.stats.xp >= this.stats.xpToNext) {
       this.stats.xp -= this.stats.xpToNext
       this.stats.level++
       this.stats.xpToNext = Math.floor(this.stats.xpToNext * 1.4)
-      this.stats.maxHp += 10
-      this.stats.hp = Math.min(this.stats.hp + 20, this.stats.maxHp)
-      this.stats.damage += 2
+      onLevelUp?.()
     }
+  }
+
+  applyLevelUpSkill(id: PlayerSkillId): void {
+    const def = PLAYER_SKILL_POOL.find(s => s.id === id)
+    if (!def) return
+    const currentStack = (this.appliedPlayerSkills.get(id) ?? 0) + 1
+    this.appliedPlayerSkills.set(id, currentStack)
+    def.apply(this, currentStack)
   }
 
   equipWeapon(profile: WeaponProfile): void {

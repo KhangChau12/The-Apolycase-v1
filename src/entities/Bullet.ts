@@ -8,8 +8,17 @@ export class Bullet {
   damage: number
   owner: BulletOwner
   alive = true
+  radius = 4
   get angle(): number { return Math.atan2(this.vy, this.vx) }
   private lifetime = 2.5
+
+  // Special bullet flags
+  isPenetrating = false
+  isExplosive = false
+  isBurning = false
+  burnDps = 0
+  isFireball = false
+  hitZombies: Set<object> = new Set()  // prevents hitting same zombie twice per pass
 
   constructor(x: number, y: number, angle: number, speed: number, damage: number, owner: BulletOwner) {
     this.x = x

@@ -40,16 +40,17 @@ export class TowerInspectMenu {
 
     const nextDmg    = t.profile.damage * (t.level + 1)
     const nextHp     = t.profile.hp * (t.level + 1)
-    const nextRepair = t.profile.type === 'repairNode' ? 3 * (t.level + 1) : null
+    const nextRepair = t.profile.type === 'repairTower' ? 3 * (t.level + 1) : null
+    void nextRepair
 
     const hpPct = t.hp / t.maxHp
 
     const typeAccent: Record<string, string> = {
-      guard:      T.orange,
-      barricade:  T.rust,
-      shockPylon: T.coreBlue,
-      sniperPost: T.amber,
-      repairNode: '#4CAF50',
+      barricade:      T.rust,
+      fireTower:      T.orange,
+      electricTower:  T.coreBlue,
+      repairTower:    '#4CAF50',
+      machineGunTower:T.amber,
     }
     const accent = typeAccent[t.profile.type] ?? T.iron
 
@@ -103,8 +104,8 @@ export class TowerInspectMenu {
             ? `<div style="${statRow()}"><span style="color:${T.iron};">Fire Rate</span><span style="color:${T.bg};">${t.profile.fireRate}/s</span></div>`
             : ''
           }
-          ${t.profile.type === 'repairNode'
-            ? `<div style="${statRow()}"><span style="color:${T.iron};">Heal/s</span><span style="color:#4CAF50;">${3 * t.level} HP</span></div>`
+          ${t.profile.type === 'repairTower'
+            ? `<div style="${statRow()}"><span style="color:${T.iron};">Worker</span><span style="color:#4CAF50;">Active</span></div>`
             : ''
           }
           <div style="${statRow()}"><span style="color:${T.iron};">Max HP</span><span style="color:${T.bg};">${t.maxHp}</span></div>

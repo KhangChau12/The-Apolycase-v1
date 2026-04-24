@@ -1,4 +1,4 @@
-export type TowerType = 'guard' | 'barricade' | 'shockPylon' | 'sniperPost' | 'repairNode'
+export type TowerType = 'barricade' | 'fireTower' | 'electricTower' | 'repairTower' | 'machineGunTower'
 
 export interface TowerProfile {
   type: TowerType
@@ -10,24 +10,16 @@ export interface TowerProfile {
   damage: number
   fireRate: number      // shots per second (0 = passive)
   description: string
+  burnDps?: number
+  burnDuration?: number
+  chainCount?: number
 }
 
 export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
-  guard: {
-    type: 'guard',
-    label: 'Guard Tower',
-    costIron: 20,
-    costCore: 0,
-    hp: 200,
-    range: 180,
-    damage: 15,
-    fireRate: 2,
-    description: 'Basic auto-attack tower, targets nearest zombie.',
-  },
   barricade: {
     type: 'barricade',
     label: 'Barricade',
-    costIron: 10,
+    costIron: 3,
     costCore: 0,
     hp: 400,
     range: 0,
@@ -35,37 +27,51 @@ export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
     fireRate: 0,
     description: 'Physical blocker. Zombies must destroy it to pass.',
   },
-  shockPylon: {
-    type: 'shockPylon',
-    label: 'Shock Pylon',
-    costIron: 15,
-    costCore: 5,
-    hp: 150,
-    range: 120,
-    damage: 8,
-    fireRate: 1,
-    description: 'AOE electric pulse. Slows zombies in radius.',
-  },
-  sniperPost: {
-    type: 'sniperPost',
-    label: 'Sniper Post',
+  fireTower: {
+    type: 'fireTower',
+    label: 'Fire Tower',
     costIron: 25,
     costCore: 8,
-    hp: 120,
-    range: 400,
-    damage: 80,
-    fireRate: 0.5,
-    description: 'Long range, high damage, slow fire rate.',
+    hp: 180,
+    range: 160,
+    damage: 30,
+    fireRate: 1.5,
+    burnDps: 8,
+    burnDuration: 3,
+    description: 'Fires a large slow fireball that passes through all zombies and sets them ablaze.',
   },
-  repairNode: {
-    type: 'repairNode',
-    label: 'Repair Node',
-    costIron: 10,
+  electricTower: {
+    type: 'electricTower',
+    label: 'Electric Tower',
+    costIron: 20,
+    costCore: 12,
+    hp: 140,
+    range: 180,
+    damage: 12,
+    fireRate: 1.0,
+    chainCount: 4,
+    description: 'Chains lightning to multiple enemies. More targets = more damage.',
+  },
+  repairTower: {
+    type: 'repairTower',
+    label: 'Repair Tower',
+    costIron: 15,
     costCore: 10,
     hp: 100,
     range: 150,
     damage: 0,
     fireRate: 0,
-    description: 'Passively heals towers and Home Base in range.',
+    description: 'Spawns a worker drone that walks to damaged towers and repairs them.',
+  },
+  machineGunTower: {
+    type: 'machineGunTower',
+    label: 'Machine Gun',
+    costIron: 30,
+    costCore: 6,
+    hp: 220,
+    range: 200,
+    damage: 6,
+    fireRate: 12,
+    description: 'Extreme fire rate, single target. High sustained DPS.',
   },
 }

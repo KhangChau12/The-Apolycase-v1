@@ -1,6 +1,7 @@
 import { dist } from '../utils/math'
 import { Zombie } from './Zombie'
 import { Tower } from '../towers/Tower'
+import { BaseSkillId, BASE_SKILL_POOL } from '../data/baseSkillPool'
 
 interface PlayerRef { x: number; y: number; stats: { hp: number; maxHp: number } }
 
@@ -11,10 +12,13 @@ export class HomeBase {
   maxHp: number
   regenPerSecond: number
 
-  // Aura config — scales with base upgrade level (future shop)
   auraRadius = 260
-  auraHealPerSec = 8      // HP/s restored to towers and player inside aura
-  auraDotPerSec = 5       // damage/s dealt to zombies inside aura
+  auraHealPerSec = 8
+  auraDotPerSec = 5
+  thornsEnabled = false
+
+  // Base skill system
+  appliedBaseSkills: Map<BaseSkillId, number> = new Map()
 
   constructor(x: number, y: number) {
     this.x = x
@@ -56,8 +60,19 @@ export class HomeBase {
     }
   }
 
-  takeDamage(amount: number): void {
+  takeDamage(amount: number, attacker?: { takeDamage(n: number): void }): void {
     this.hp -= amount
+    if (this.thornsEnabled && attacker) {
+      attacker.takeDamage(amount * 0.3)
+    }
+  }
+
+  applyBaseSkill(id: BaseSkillId): void {
+    const def = BASE_SKILL_POOL.find(s => s.id === id)
+    if (!def) return
+    const currentStack = (this.appliedBaseSkills.get(id) ?? 0) + 1
+    this.appliedBaseSkills.set(id, currentStack)
+    def.apply(this, currentStack)
   }
 
   get isDead(): boolean {
