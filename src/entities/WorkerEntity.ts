@@ -7,9 +7,10 @@ export class WorkerEntity {
   readonly homeNode: Tower
   private target: Tower | null = null
   private state: 'idle' | 'movingOut' | 'repairing' | 'returning' = 'idle'
-  private readonly speed = 60
-  private readonly repairRate = 8   // HP/s while repairing
-  private idleTimer = 0.5           // small delay before looking for a new target
+  private readonly speed = 90
+  private readonly repairRate = 15  // HP/s while repairing
+  private idleTimer = 0.5
+  private walkCycle = Math.random() * Math.PI * 2  // staggered start
 
   constructor(homeNode: Tower) {
     this.homeNode = homeNode
@@ -19,6 +20,8 @@ export class WorkerEntity {
 
   update(dt: number, towers: Tower[]): void {
     if (!this.homeNode.alive) return
+
+    if (this.state !== 'idle') this.walkCycle += dt * 8
 
     switch (this.state) {
       case 'idle': {
@@ -68,36 +71,77 @@ export class WorkerEntity {
   render(ctx: CanvasRenderingContext2D): void {
     if (!this.homeNode.alive) return
     ctx.save()
-    ctx.translate(this.x, this.y)
 
-    // Draw line back to home when moving/repairing
+    // Draw tether line back to home when active
     if (this.state !== 'idle') {
-      ctx.strokeStyle = 'rgba(76,175,80,0.3)'
+      ctx.strokeStyle = 'rgba(192,192,192,0.2)'
       ctx.lineWidth = 1
-      ctx.setLineDash([4, 4])
+      ctx.setLineDash([3, 5])
       ctx.beginPath()
-      ctx.moveTo(0, 0)
-      ctx.lineTo(this.homeNode.x - this.x, this.homeNode.y - this.y)
+      ctx.moveTo(this.x, this.y)
+      ctx.lineTo(this.homeNode.x, this.homeNode.y)
       ctx.stroke()
       ctx.setLineDash([])
     }
 
-    // Worker body — small green circle
-    ctx.fillStyle = this.state === 'repairing' ? '#88ff88' : '#4CAF50'
-    ctx.strokeStyle = '#1a3a1a'
+    ctx.translate(this.x, this.y)
+
+    const isMoving = this.state === 'movingOut' || this.state === 'returning'
+    const isRepairing = this.state === 'repairing'
+    const bob = isMoving ? Math.sin(this.walkCycle) * 1.8 : 0
+
+    // Leg animation when moving
+    if (isMoving) {
+      const legSwing = Math.sin(this.walkCycle) * 3
+      ctx.strokeStyle = '#909090'
+      ctx.lineWidth = 1.2
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(-2, 3 + bob); ctx.lineTo(-3, 7 + legSwing)
+      ctx.moveTo(2, 3 + bob);  ctx.lineTo(3, 7 - legSwing)
+      ctx.stroke()
+    }
+
+    // Body — silver/steel circle
+    const bodyColor = isRepairing ? '#E8E8E8' : '#C0C0C0'
+    ctx.shadowColor = isRepairing ? '#aaffaa' : '#aaaacc'
+    ctx.shadowBlur = isRepairing ? 6 : 3
+    ctx.fillStyle = bodyColor
+    ctx.strokeStyle = '#707070'
     ctx.lineWidth = 1.5
     ctx.beginPath()
-    ctx.arc(0, 0, 5, 0, Math.PI * 2)
+    ctx.arc(0, bob, 5, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
 
-    // Wrench icon cross
-    ctx.strokeStyle = '#1a3a1a'
+    ctx.shadowBlur = 0
+
+    // Head — small circle on top
+    ctx.fillStyle = '#D8D8D8'
+    ctx.strokeStyle = '#606060'
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(-3, 0); ctx.lineTo(3, 0)
-    ctx.moveTo(0, -3); ctx.lineTo(0, 3)
+    ctx.arc(0, -4 + bob, 2.5, 0, Math.PI * 2)
+    ctx.fill()
     ctx.stroke()
+
+    // Repair tool icon — wrench shape (X cross when repairing, small diagonal lines)
+    if (isRepairing) {
+      ctx.strokeStyle = '#FFCC44'
+      ctx.lineWidth = 1.2
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(-2.5, -2 + bob); ctx.lineTo(2.5, 3 + bob)
+      ctx.moveTo(2.5, -2 + bob);  ctx.lineTo(-2.5, 3 + bob)
+      ctx.stroke()
+    } else {
+      // Tool held on side
+      ctx.strokeStyle = '#909090'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(-3, 0 + bob); ctx.lineTo(3, 0 + bob)
+      ctx.stroke()
+    }
 
     ctx.restore()
   }
@@ -110,7 +154,7 @@ export class WorkerEntity {
   private findMostDamaged(towers: Tower[]): Tower | null {
     const range = this.homeNode.profile.range
     let best: Tower | null = null
-    let bestRatio = 1.0   // only target towers that are actually damaged
+    let bestRatio = 1.0
     for (const t of towers) {
       if (!t.alive || t === this.homeNode) continue
       if (dist(this.homeNode.x, this.homeNode.y, t.x, t.y) > range) continue

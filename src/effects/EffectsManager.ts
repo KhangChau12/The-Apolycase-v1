@@ -3,16 +3,26 @@ import { T } from '../ui/theme'
 
 type ZombieArchetype = 'regular' | 'fast' | 'tank' | 'armored' | 'boss'
 
+interface LightningSegment { ax: number; ay: number; bx: number; by: number }
+
+interface LightningEffect {
+  chains: LightningSegment[][]
+  life: number
+  maxLife: number
+}
+
 export class EffectsManager {
   private particles: Particle[] = []
+  private lightnings: LightningEffect[] = []
   private screenFlashAlpha = 0
   private screenFlashColor = '204,26,26'
 
   update(dt: number): void {
     for (const p of this.particles) p.update(dt)
     this.particles = this.particles.filter(p => p.alive)
-    // Safety cap
     if (this.particles.length > 400) this.particles.splice(0, 40)
+    for (const l of this.lightnings) l.life -= dt
+    this.lightnings = this.lightnings.filter(l => l.life > 0)
     if (this.screenFlashAlpha > 0) this.screenFlashAlpha = Math.max(0, this.screenFlashAlpha - dt * 1.8)
   }
 
@@ -25,6 +35,58 @@ export class EffectsManager {
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
+    }
+
+    // Persistent lightning chains
+    for (const l of this.lightnings) {
+      const alpha = l.life / l.maxLife
+      for (const chain of l.chains) {
+        // Glow pass
+        ctx.save()
+        ctx.globalAlpha = alpha * 0.5
+        ctx.strokeStyle = '#88eeff'
+        ctx.lineWidth = 4
+        ctx.shadowColor = '#88eeff'
+        ctx.shadowBlur = 12
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        for (const seg of chain) {
+          ctx.moveTo(seg.ax, seg.ay)
+          ctx.lineTo(seg.bx, seg.by)
+        }
+        ctx.stroke()
+        ctx.restore()
+
+        // Core pass
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.strokeStyle = '#ccf8ff'
+        ctx.lineWidth = 1.5
+        ctx.shadowColor = '#88eeff'
+        ctx.shadowBlur = 6
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        for (const seg of chain) {
+          ctx.moveTo(seg.ax, seg.ay)
+          ctx.lineTo(seg.bx, seg.by)
+        }
+        ctx.stroke()
+        ctx.restore()
+
+        // White hot center
+        ctx.save()
+        ctx.globalAlpha = alpha * 0.7
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 0.6
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        for (const seg of chain) {
+          ctx.moveTo(seg.ax, seg.ay)
+          ctx.lineTo(seg.bx, seg.by)
+        }
+        ctx.stroke()
+        ctx.restore()
+      }
     }
   }
 
@@ -99,21 +161,68 @@ export class EffectsManager {
     }
   }
 
+  spawnFireTrail(x: number, y: number, angle: number): void {
+    const backAngle = angle + Math.PI
+    for (let i = 0; i < 3; i++) {
+      const spread = (Math.random() - 0.5) * 0.6
+      const spd = 20 + Math.random() * 40
+      const color = Math.random() < 0.5 ? '#FF6820' : '#FF4400'
+      this.particles.push(new Particle(x, y, color, 2 + Math.random() * 3, spd, {
+        dirAngle: backAngle + spread,
+        spread: 0,
+        sizeDecay: 14,
+        life: 0.1 + Math.random() * 0.08,
+      }))
+    }
+  }
+
   spawnLightningChain(points: { x: number; y: number }[]): void {
+    const chains: LightningSegment[][] = []
+
     for (let i = 0; i + 1 < points.length; i++) {
       const a = points[i], b = points[i + 1]
-      const steps = 6
-      for (let s = 0; s <= steps; s++) {
+      const dx = b.x - a.x, dy = b.y - a.y
+      const len = Math.sqrt(dx * dx + dy * dy)
+      if (len < 1) continue
+
+      // Perpendicular direction for random offsets
+      const px = -dy / len, py = dx / len
+
+      const steps = 8 + Math.floor(Math.random() * 5)
+      const chain: LightningSegment[] = []
+
+      // Build zigzag midpoints
+      const midpoints: { x: number; y: number }[] = [{ x: a.x, y: a.y }]
+      for (let s = 1; s < steps; s++) {
         const t = s / steps
-        const cx = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 20
-        const cy = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 20
-        this.particles.push(new Particle(cx, cy, '#88eeff', 2 + Math.random() * 2, 0, {
-          dirAngle: 0,
-          spread: Math.PI * 2,
-          sizeDecay: 12,
-          life: 0.1 + Math.random() * 0.1,
+        const mx = a.x + dx * t
+        const my = a.y + dy * t
+        const offset = (Math.random() - 0.5) * Math.min(len * 0.35, 28)
+        midpoints.push({ x: mx + px * offset, y: my + py * offset })
+      }
+      midpoints.push({ x: b.x, y: b.y })
+
+      for (let s = 0; s + 1 < midpoints.length; s++) {
+        chain.push({
+          ax: midpoints[s].x, ay: midpoints[s].y,
+          bx: midpoints[s + 1].x, by: midpoints[s + 1].y,
+        })
+      }
+      chains.push(chain)
+
+      // Small spark particles at hit point
+      for (let k = 0; k < 4; k++) {
+        this.particles.push(new Particle(b.x, b.y, '#88eeff', 2 + Math.random() * 2, 60 + Math.random() * 80, {
+          dirAngle: Math.random() * Math.PI * 2,
+          spread: Math.PI,
+          sizeDecay: 20,
+          life: 0.08 + Math.random() * 0.08,
         }))
       }
+    }
+
+    if (chains.length > 0) {
+      this.lightnings.push({ chains, life: 0.18, maxLife: 0.18 })
     }
   }
 

@@ -25,6 +25,7 @@ import { spawnWave } from '../systems/Spawner'
 import { dist } from '../utils/math'
 import { PLAYER_SKILL_POOL } from '../data/playerSkillPool'
 import { BASE_SKILL_POOL } from '../data/baseSkillPool'
+import { loadCanvasIcons, drawCanvasIcon } from '../ui/canvasIcons'
 
 const WORLD_W = 3000
 const WORLD_H = 3000
@@ -96,6 +97,14 @@ export class Game {
     void this.skillModal
     this.buildContextMenu = new BuildContextMenu(this)
     this.towerInspectMenu = new TowerInspectMenu(this)
+
+    loadCanvasIcons([
+      { icon: 'flame',      color: '#FF6820' },
+      { icon: 'zap',        color: '#88eeff' },
+      { icon: 'wrench',     color: '#4CAF50' },
+      { icon: 'crosshair',  color: '#E8A030' },
+      { icon: 'shield',     color: '#8B3A2A' },
+    ])
 
     this.resources.add({ coins: 50, iron: 40, energyCore: 5 })
     this.enterBreak(10, false)
@@ -198,7 +207,7 @@ export class Game {
     const tower = new Tower(worldX, worldY, profile)
     this.towers.push(tower)
     if (type === 'repairTower') {
-      this.workers.push(new WorkerEntity(tower))
+      for (let wi = 0; wi < 3; wi++) this.workers.push(new WorkerEntity(tower))
     }
     this.hud.showMessage(`${profile.label} placed`, '#8f8')
   }
@@ -322,6 +331,9 @@ export class Game {
     this.camera.follow(this.player.x, this.player.y, WORLD_W, WORLD_H)
 
     for (const b of this.bullets) b.update(dt)
+    for (const b of this.bullets) {
+      if (b.alive && b.isFireball) this.effects.spawnFireTrail(b.x, b.y, b.angle)
+    }
     this.bullets = this.bullets.filter(b => b.alive)
 
     for (const z of this.zombies) {
@@ -600,39 +612,22 @@ export class Game {
       machineGunTower:'rgba(232,160,48,0.12)',
     }
 
+    const TOWER_SVG_ICON: Record<string, string> = {
+      barricade:       'shield',
+      fireTower:       'flame',
+      electricTower:   'zap',
+      repairTower:     'wrench',
+      machineGunTower: 'crosshair',
+    }
+
     const drawIcon = (ctx: CanvasRenderingContext2D, type: string, stroke: string) => {
-      ctx.strokeStyle = stroke
-      ctx.lineWidth = 1.5
-      ctx.beginPath()
-      if (type === 'barricade') {
-        ctx.moveTo(-6, -3); ctx.lineTo(6, -3)
-        ctx.moveTo(-6, 0);  ctx.lineTo(6, 0)
-        ctx.moveTo(-6, 3);  ctx.lineTo(6, 3)
-        ctx.stroke()
-      } else if (type === 'fireTower') {
-        // Three upward flame curves
-        ctx.moveTo(-4, 5); ctx.quadraticCurveTo(-4, -2, 0, -6)
-        ctx.moveTo(0, 5);  ctx.quadraticCurveTo(2, 0, 0, -6)
-        ctx.moveTo(4, 5);  ctx.quadraticCurveTo(6, -2, 3, -5)
-        ctx.stroke()
-      } else if (type === 'electricTower') {
-        // Zigzag lightning bolt
-        ctx.moveTo(3, -7); ctx.lineTo(-2, -1); ctx.lineTo(2, -1); ctx.lineTo(-3, 6)
-        ctx.stroke()
-      } else if (type === 'repairTower') {
-        // Wrench cross
-        ctx.moveTo(-5, 0); ctx.lineTo(5, 0)
-        ctx.moveTo(0, -5); ctx.lineTo(0, 5)
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.arc(0, 0, 2, 0, Math.PI * 2)
-        ctx.stroke()
-      } else if (type === 'machineGunTower') {
-        // Double barrel lines
-        ctx.moveTo(-7, -2); ctx.lineTo(7, -2)
-        ctx.moveTo(-7, 2);  ctx.lineTo(7, 2)
-        ctx.moveTo(5, -5);  ctx.lineTo(5, 5)
-        ctx.stroke()
+      const iconName = TOWER_SVG_ICON[type]
+      if (iconName) {
+        // Use pre-rendered SVG image — drawn at 18×18 centered on tower
+        ctx.save()
+        ctx.globalAlpha = 0.92
+        drawCanvasIcon(ctx, iconName, stroke, 0, 0, 18)
+        ctx.restore()
       }
     }
 
@@ -836,18 +831,64 @@ export class Game {
   private renderBullets(ctx: CanvasRenderingContext2D): void {
     for (const b of this.bullets) {
       if (b.isFireball) {
-        // Large glowing orange fireball
         ctx.save()
-        ctx.shadowColor = '#FF6820'
-        ctx.shadowBlur = 14
-        ctx.fillStyle = '#FF6820'
+        const t = Date.now()
+        const wobble = Math.sin(t / 80) * 0.18
+        const backAngle = b.angle + Math.PI
+
+        // Fiery tail — elongated teardrops behind the ball
+        for (let ti = 1; ti <= 4; ti++) {
+          const dist2 = ti * (b.radius * 0.85)
+          const tx = b.x + Math.cos(backAngle) * dist2
+          const ty = b.y + Math.sin(backAngle) * dist2
+          const tr = b.radius * (1 - ti * 0.2) * (0.7 + 0.15 * Math.sin(t / 60 + ti))
+          if (tr <= 0) break
+          ctx.globalAlpha = (1 - ti * 0.22) * 0.85
+          ctx.shadowColor = '#FF4400'
+          ctx.shadowBlur = 10
+          ctx.fillStyle = ti <= 2 ? '#FF5500' : '#FF3300'
+          ctx.save()
+          ctx.translate(tx, ty)
+          ctx.rotate(b.angle + wobble * (ti % 2 === 0 ? 1 : -1))
+          ctx.beginPath()
+          ctx.ellipse(0, 0, tr * 0.65, tr, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        }
+
+        ctx.globalAlpha = 1
+
+        // Outer fire layer
+        ctx.shadowColor = '#FF4400'
+        ctx.shadowBlur = 22
+        ctx.fillStyle = '#FF5500'
+        ctx.save()
+        ctx.translate(b.x, b.y)
+        ctx.rotate(wobble)
         ctx.beginPath()
-        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2)
+        ctx.arc(0, 0, b.radius * 1.25, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = '#ffcc44'
+        ctx.restore()
+
+        // Mid fire layer
+        ctx.shadowBlur = 14
+        ctx.fillStyle = '#FF8820'
+        ctx.save()
+        ctx.translate(b.x, b.y)
+        ctx.rotate(-wobble * 1.3)
+        ctx.beginPath()
+        ctx.arc(0, 0, b.radius, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+
+        // Hot core
+        ctx.shadowColor = '#FFEE44'
+        ctx.shadowBlur = 8
+        ctx.fillStyle = '#FFEE44'
         ctx.beginPath()
         ctx.arc(b.x, b.y, b.radius * 0.45, 0, Math.PI * 2)
         ctx.fill()
+
         ctx.restore()
         continue
       }

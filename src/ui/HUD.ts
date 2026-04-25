@@ -1,6 +1,7 @@
 import { Game } from '../core/Game'
 import { SKILL_DEFS } from '../systems/SkillManager'
 import { T } from './theme'
+import { getIcon } from './icons'
 
 interface Message { text: string; color: string; expiry: number }
 
@@ -111,32 +112,18 @@ export class HUD {
           "></div>
         </div>
 
-        <!-- 3: Weapon slot -->
+        <!-- 3: Weapon slots -->
         <div style="
-          display:flex;align-items:center;justify-content:center;gap:8px;
+          display:flex;align-items:center;gap:5px;
           padding:0 10px;
           border-right:1px solid rgba(139,58,42,0.3);
+          min-width:0;
         ">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-            <div id="hud-weapon-slot" style="
-              width:54px;height:54px;background:#1a0e06;
-              border:2px solid #3a2a1a;border-radius:4px;
-              display:flex;flex-direction:column;
-              align-items:center;justify-content:center;gap:1px;
-            ">
-              <span id="hud-weapon-abbr" style="color:${T.amber};font:bold 13px ${T.font};"></span>
-              <span id="hud-weapon-ammo" style="color:${T.bg};font:10px ${T.font};"></span>
-            </div>
-            <span id="hud-weapon-name" style="
-              color:${T.iron};font:8px ${T.font};
-              max-width:60px;text-align:center;white-space:nowrap;
-              overflow:hidden;text-overflow:ellipsis;
-            "></span>
-          </div>
-          <!-- Reload bar -->
-          <div id="hud-reload-bar-wrap" style="display:none;flex-direction:column;align-items:center;gap:2px;">
-            <span style="color:${T.amber};font:9px ${T.font};">RELOAD</span>
-            <div style="width:44px;height:4px;background:rgba(44,36,22,0.7);border-radius:2px;overflow:hidden;">
+          <div id="hud-weapon-slots" style="display:flex;gap:4px;align-items:center;"></div>
+          <!-- Reload bar (shown when reloading) -->
+          <div id="hud-reload-bar-wrap" style="display:none;flex-direction:column;align-items:center;gap:2px;margin-left:4px;">
+            <span style="color:${T.amber};font:9px ${T.font};letter-spacing:0.5px;">RELOAD</span>
+            <div style="width:40px;height:4px;background:rgba(44,36,22,0.7);border-radius:2px;overflow:hidden;">
               <div id="hud-reload-fill" style="height:100%;background:${T.amber};border-radius:2px;width:0%;transition:width 0.05s;"></div>
             </div>
           </div>
@@ -248,19 +235,82 @@ export class HUD {
     if (isBossActive) this.bossWarningEl.classList.add('boss-active')
     else this.bossWarningEl.classList.remove('boss-active')
 
-    // Weapon slot
-    const abbr = WEAPON_CLASS_ABBR[p.currentWeapon.class] ?? '??'
-    const slotEl = this.el.querySelector('#hud-weapon-slot') as HTMLElement | null
-    if (slotEl) {
-      const isEmpty = p.ammoInMag === 0
-      slotEl.style.borderColor = p.reloading ? T.amber : isEmpty ? T.blood : '#3a2a1a'
+    // Weapon slots — rebuild when count or active index changes
+    const weaponSlotsEl = this.el.querySelector('#hud-weapon-slots') as HTMLElement | null
+    if (weaponSlotsEl) {
+      const owned = p.ownedWeapons
+      const activeIdx = p.activeWeaponIndex
+      const prevCount = parseInt(weaponSlotsEl.dataset.count ?? '-1')
+      const prevActive = parseInt(weaponSlotsEl.dataset.active ?? '-1')
+      if (prevCount !== owned.length || prevActive !== activeIdx) {
+        weaponSlotsEl.dataset.count = String(owned.length)
+        weaponSlotsEl.dataset.active = String(activeIdx)
+        weaponSlotsEl.innerHTML = owned.map((slot, i) => {
+          const isActive = i === activeIdx
+          const abbr = WEAPON_CLASS_ABBR[slot.profile.class] ?? '??'
+          const isEmpty = slot.ammoInMag === 0
+          const borderColor = isActive
+            ? (p.reloading ? T.amber : isEmpty ? T.blood : T.orange)
+            : '#2a1a0a'
+          return `
+            <div class="hud-weapon-slot-item" data-slot="${i}" style="
+              display:flex;flex-direction:column;align-items:center;gap:2px;
+              cursor:${owned.length > 1 ? 'pointer' : 'default'};
+            ">
+              <div style="
+                width:${isActive ? 52 : 40}px;height:${isActive ? 52 : 40}px;
+                background:${isActive ? '#1a0e06' : 'rgba(20,10,4,0.6)'};
+                border:2px solid ${borderColor};
+                border-radius:4px;
+                display:flex;flex-direction:column;
+                align-items:center;justify-content:center;gap:1px;
+                transition:width 0.1s,height 0.1s,border-color 0.15s;
+                position:relative;
+                box-shadow:${isActive ? `0 0 8px ${T.orange}44` : 'none'};
+              ">
+                <span style="color:${isActive ? T.amber : T.iron};font:bold ${isActive ? 11 : 9}px ${T.font};">${abbr}</span>
+                <span style="color:${isActive ? T.bg : T.iron};font:${isActive ? 9 : 8}px ${T.font};">${slot.ammoInMag}/${slot.reserveAmmo}</span>
+                ${owned.length > 1 ? `<span style="
+                  position:absolute;bottom:-1px;right:-1px;
+                  background:${isActive ? T.orange : '#2a1a0a'};
+                  color:${isActive ? '#000' : T.iron};
+                  font:bold 7px ${T.font};
+                  width:12px;height:12px;
+                  display:flex;align-items:center;justify-content:center;
+                  border-radius:2px 0 2px 0;
+                ">${i + 1}</span>` : ''}
+              </div>
+              <span style="
+                color:${isActive ? T.iron : '#3a2a1a'};font:7px ${T.font};
+                max-width:${isActive ? 56 : 42}px;text-align:center;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+              ">${slot.profile.label.split(' ')[0]}</span>
+            </div>`
+        }).join('')
+
+        // Click to switch
+        weaponSlotsEl.querySelectorAll<HTMLElement>('.hud-weapon-slot-item').forEach(el => {
+          el.addEventListener('click', () => {
+            const idx = parseInt(el.dataset.slot!)
+            p.switchToSlot(idx, g.hud)
+          })
+        })
+      } else {
+        // Fast path: update only ammo text + border color without full rebuild
+        weaponSlotsEl.querySelectorAll<HTMLElement>('.hud-weapon-slot-item').forEach(el => {
+          const i = parseInt(el.dataset.slot!)
+          const slot = p.ownedWeapons[i]
+          const isActive = i === activeIdx
+          const isEmpty = slot.ammoInMag === 0
+          const box = el.querySelector('div') as HTMLElement | null
+          if (box) box.style.borderColor = isActive
+            ? (p.reloading ? T.amber : isEmpty ? T.blood : T.orange)
+            : '#2a1a0a'
+          const spans = el.querySelectorAll('span')
+          if (spans[1]) spans[1].textContent = `${slot.ammoInMag}/${slot.reserveAmmo}`
+        })
+      }
     }
-    const abbrEl = this.el.querySelector('#hud-weapon-abbr') as HTMLElement | null
-    if (abbrEl) abbrEl.textContent = abbr
-    const ammoEl = this.el.querySelector('#hud-weapon-ammo') as HTMLElement | null
-    if (ammoEl) ammoEl.textContent = `${p.ammoInMag}/${p.reserveAmmo}`
-    const nameEl = this.el.querySelector('#hud-weapon-name') as HTMLElement | null
-    if (nameEl) nameEl.textContent = p.currentWeapon.label
 
     // Reload bar
     const reloadWrap = this.el.querySelector('#hud-reload-bar-wrap') as HTMLElement | null
@@ -310,10 +360,11 @@ export class HUD {
     const riEl = this.el.querySelector('#res-iron')    as HTMLElement | null
     const reEl = this.el.querySelector('#res-core')    as HTMLElement | null
     const rxEl = this.el.querySelector('#res-crystal') as HTMLElement | null
-    if (rcEl) rcEl.textContent = `¢${res.coins}`
-    if (riEl) riEl.textContent = `⬡${res.iron}`
-    if (reEl) reEl.textContent = `◈${res.energyCore}`
-    if (rxEl) rxEl.textContent = `✦${res.crystal}`
+    const iconStyle = 'display:inline-flex;vertical-align:middle;margin-right:2px;'
+    if (rcEl) rcEl.innerHTML = `<span style="${iconStyle}">${getIcon('coins', 12, T.gold)}</span>${res.coins}`
+    if (riEl) riEl.innerHTML = `<span style="${iconStyle}">${getIcon('hexagon', 12, T.ironGrey)}</span>${res.iron}`
+    if (reEl) reEl.innerHTML = `<span style="${iconStyle}">${getIcon('cpu', 12, T.coreBlue)}</span>${res.energyCore}`
+    if (rxEl) rxEl.innerHTML = `<span style="${iconStyle}">${getIcon('gem', 12, T.crystalCyan)}</span>${res.crystal}`
 
     this.updateMessages()
   }

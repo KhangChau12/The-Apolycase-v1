@@ -46,7 +46,7 @@ export class Tower {
     fireball.isFireball = true
     fireball.isBurning = true
     fireball.burnDps = (this.profile.burnDps ?? 8) * this.level
-    fireball.radius = 10
+    fireball.radius = 16
     bullets.push(fireball)
     this.fireCooldown = 1 / this.profile.fireRate
   }
