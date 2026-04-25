@@ -12,6 +12,7 @@ export class Tower {
   hp: number
   level = 1
   alive = true
+  spawnTime = 0
   private fireCooldown = 0
 
   constructor(

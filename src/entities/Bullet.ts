@@ -12,6 +12,9 @@ export class Bullet {
   get angle(): number { return Math.atan2(this.vy, this.vx) }
   private lifetime = 2.5
 
+  // Weapon class tag for visual rendering dispatch
+  weaponClass: import('../data/weaponData').WeaponClass | null = null
+
   // Special bullet flags
   isPenetrating = false
   isExplosive = false

@@ -11,6 +11,8 @@ export interface WeaponProfile {
   magSize: number
   bulletSpeed: number
   cost: number          // coins
+  shakeIntensity: number
+  shakeDuration: number
 }
 
 export const WEAPON_PROFILES: WeaponProfile[] = [
@@ -23,8 +25,10 @@ export const WEAPON_PROFILES: WeaponProfile[] = [
     spread: 3,
     reloadTime: 1.2,
     magSize: 15,
-    bulletSpeed: 600,
+    bulletSpeed: 1400,
     cost: 0,
+    shakeIntensity: 0.8,
+    shakeDuration: 0.06,
   },
   {
     id: 'shotgun_870',
@@ -35,8 +39,10 @@ export const WEAPON_PROFILES: WeaponProfile[] = [
     spread: 18,
     reloadTime: 2.5,
     magSize: 6,
-    bulletSpeed: 500,
+    bulletSpeed: 1100,
     cost: 200,
+    shakeIntensity: 2.5,
+    shakeDuration: 0.12,
   },
   {
     id: 'ar_m4',
@@ -47,8 +53,10 @@ export const WEAPON_PROFILES: WeaponProfile[] = [
     spread: 4,
     reloadTime: 2.0,
     magSize: 30,
-    bulletSpeed: 800,
+    bulletSpeed: 1800,
     cost: 350,
+    shakeIntensity: 1.0,
+    shakeDuration: 0.07,
   },
   {
     id: 'smg_mp5',
@@ -59,8 +67,10 @@ export const WEAPON_PROFILES: WeaponProfile[] = [
     spread: 6,
     reloadTime: 1.8,
     magSize: 40,
-    bulletSpeed: 700,
+    bulletSpeed: 1600,
     cost: 280,
+    shakeIntensity: 0.6,
+    shakeDuration: 0.05,
   },
   {
     id: 'sniper_awp',
@@ -71,7 +81,9 @@ export const WEAPON_PROFILES: WeaponProfile[] = [
     spread: 0.5,
     reloadTime: 3.0,
     magSize: 5,
-    bulletSpeed: 1200,
+    bulletSpeed: 2800,
     cost: 600,
+    shakeIntensity: 3.5,
+    shakeDuration: 0.15,
   },
 ]

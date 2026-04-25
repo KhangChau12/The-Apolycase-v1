@@ -114,7 +114,9 @@ export class Player {
         )
         b.isPenetrating = this.bulletPenetrating
         b.isExplosive = this.bulletExplosion
+        b.weaponClass = w.class
         game.bullets.push(b)
+        game.shake(w.shakeIntensity, w.shakeDuration)
         this.pendingFollowBullet = null
       }
     }
@@ -188,6 +190,7 @@ export class Player {
       )
       b.isPenetrating = this.bulletPenetrating
       b.isExplosive = this.bulletExplosion
+      b.weaponClass = w.class
       game.bullets.push(b)
 
       // Twin Shot: queue a follow-up bullet with 0.08s delay, same trajectory
@@ -197,6 +200,7 @@ export class Player {
     }
 
     this.ammoInMag--
+    game.shake(w.shakeIntensity, w.shakeDuration)
     this.fireCooldown = 1 / (w.fireRate * this.fireRateMultiplier)
   }
 

@@ -32,6 +32,15 @@ const WORLD_H = 3000
 export const BASE_X = WORLD_W / 2
 export const BASE_Y = WORLD_H / 2
 
+const BULLET_STREAK: Record<string, { len: number; w: number; color: string; glow: string }> = {
+  pistol:       { len: 14, w: 1.5, color: 'rgba(255,225,140,1.0)',  glow: 'rgba(255,200,100,0.55)' },
+  shotgun:      { len: 10, w: 2.0, color: 'rgba(255,185,70,1.0)',   glow: 'rgba(255,160,50,0.55)'  },
+  assaultRifle: { len: 20, w: 1.5, color: 'rgba(255,235,150,1.0)',  glow: 'rgba(255,215,120,0.55)' },
+  smg:          { len: 12, w: 1.2, color: 'rgba(255,215,120,1.0)',  glow: 'rgba(255,190,90,0.50)'  },
+  sniperRifle:  { len: 38, w: 1.0, color: 'rgba(255,250,210,1.0)',  glow: 'rgba(255,240,170,0.60)' },
+}
+const DEFAULT_STREAK = { len: 12, w: 1.5, color: 'rgba(255,185,70,1.0)', glow: 'rgba(255,160,50,0.55)' }
+
 export type GamePhase = 'playing' | 'break' | 'gameover'
 
 export class Game {
@@ -73,6 +82,7 @@ export class Game {
   screenH = window.innerHeight
 
   private shakeDuration = 0
+  private shakeMaxDuration = 0
   private shakeIntensity = 0
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -132,8 +142,12 @@ export class Game {
   }
 
   shake(intensity: number, duration: number): void {
-    this.shakeIntensity = intensity
-    this.shakeDuration = duration
+    // Only override if new shake is stronger
+    if (intensity >= this.shakeIntensity) {
+      this.shakeIntensity = intensity
+      this.shakeDuration = duration
+      this.shakeMaxDuration = duration
+    }
   }
 
   private startWave(): void {
@@ -205,10 +219,12 @@ export class Game {
     }
     this.resources.spend({ iron: profile.costIron, energyCore: profile.costCore })
     const tower = new Tower(worldX, worldY, profile)
+    tower.spawnTime = Date.now()
     this.towers.push(tower)
     if (type === 'repairTower') {
       for (let wi = 0; wi < 3; wi++) this.workers.push(new WorkerEntity(tower))
     }
+    this.shake(2, 0.15)
     this.hud.showMessage(`${profile.label} placed`, '#8f8')
   }
 
@@ -292,6 +308,7 @@ export class Game {
 
   // During break: player moves freely, camera follows, drops expire, HUD ticks
   private updateBreak(dt: number): void {
+    if (this.shakeDuration > 0) this.shakeDuration -= dt
     this.waveManager.update(dt)
 
     // Player can still move and aim during break
@@ -417,7 +434,6 @@ export class Game {
       if (this.waveManager.isBossWave) {
         this.resources.add({ crystal: 1 })
         this.hud.showMessage('Boss defeated! +1 Crystal ✦', T.gold)
-        this.shake(10, 0.5)
         this.effects.triggerExplosionFlash()
       }
       this.enterBreak()
@@ -489,9 +505,12 @@ export class Game {
     ctx.save()
 
     if (this.shakeDuration > 0) {
+      // Exponential decay: shake peaks immediately and dies off fast
+      const progress = this.shakeMaxDuration > 0 ? this.shakeDuration / this.shakeMaxDuration : 0
+      const decayed = this.shakeIntensity * Math.pow(progress, 0.4)
       ctx.translate(
-        (Math.random() - 0.5) * this.shakeIntensity * 2,
-        (Math.random() - 0.5) * this.shakeIntensity * 2,
+        (Math.random() - 0.5) * decayed * 2,
+        (Math.random() - 0.5) * decayed * 2,
       )
     }
 
@@ -650,6 +669,14 @@ export class Game {
 
       ctx.save()
       ctx.translate(t.x, t.y)
+
+      // Spawn scale animation: 1.4 → 1.0 over 150ms, cubic ease-out
+      const SPAWN_MS = 150
+      const elapsed = t.spawnTime > 0 ? Date.now() - t.spawnTime : SPAWN_MS
+      const spawnT = Math.min(elapsed / SPAWN_MS, 1)
+      const spawnScale = 1.4 - 0.4 * (1 - Math.pow(1 - spawnT, 3))
+      if (spawnScale > 1.001) ctx.scale(spawnScale, spawnScale)
+
       const s = styleMap[t.profile.type] ?? { fill: '#1a100a', stroke: T.orange }
       const hpPct = t.hp / t.maxHp
 
@@ -807,11 +834,15 @@ export class Game {
     ctx.arc(0, 0, 14, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-    ctx.strokeStyle = T.ember
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.moveTo(10, 0); ctx.lineTo(22, 0)
-    ctx.stroke()
+    ctx.save()
+    switch (this.player.currentWeapon.class) {
+      case 'pistol':       this.drawWeaponPistol(ctx); break
+      case 'shotgun':      this.drawWeaponShotgun(ctx); break
+      case 'assaultRifle': this.drawWeaponAR(ctx); break
+      case 'smg':          this.drawWeaponSMG(ctx); break
+      case 'sniperRifle':  this.drawWeaponSniper(ctx); break
+    }
+    ctx.restore()
     ctx.restore()
 
     if (p.invincibleTimer > 0 && Math.floor(p.invincibleTimer * 10) % 2 === 0) {
@@ -892,16 +923,24 @@ export class Game {
         ctx.restore()
         continue
       }
-      // Trailing dot
-      ctx.fillStyle = 'rgba(255,107,53,0.35)'
-      ctx.beginPath()
-      ctx.arc(b.x - Math.cos(b.angle) * 4, b.y - Math.sin(b.angle) * 4, 2, 0, Math.PI * 2)
-      ctx.fill()
-      // Main bullet
-      ctx.fillStyle = T.ember
-      ctx.beginPath()
-      ctx.arc(b.x, b.y, 3, 0, Math.PI * 2)
-      ctx.fill()
+      // Light streak — two-pass (glow + core)
+      const sk = (b.weaponClass && BULLET_STREAK[b.weaponClass]) ? BULLET_STREAK[b.weaponClass] : DEFAULT_STREAK
+      const tailX = b.x - Math.cos(b.angle) * sk.len
+      const tailY = b.y - Math.sin(b.angle) * sk.len
+      ctx.lineCap = 'round'
+      // Glow pass
+      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(b.x, b.y)
+      ctx.strokeStyle = sk.glow
+      ctx.lineWidth = sk.w * 3
+      ctx.shadowColor = sk.color
+      ctx.shadowBlur = 5
+      ctx.stroke()
+      // Core pass
+      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(b.x, b.y)
+      ctx.strokeStyle = sk.color
+      ctx.lineWidth = sk.w
+      ctx.shadowBlur = 0
+      ctx.stroke()
     }
   }
 
@@ -1047,5 +1086,81 @@ export class Game {
     ctx.fillText('MAP', mx + 4, my + 10)
 
     ctx.restore()
+  }
+
+  // ── Weapon shape renderers (ctx already translated+rotated to player) ──
+
+  private drawWeaponPistol(ctx: CanvasRenderingContext2D): void {
+    // Slide / body
+    ctx.fillStyle = '#bbb'
+    ctx.fillRect(8, -2, 10, 4)
+    // Barrel
+    ctx.fillStyle = '#ddd'
+    ctx.fillRect(14, -1.5, 10, 3)
+    // Grip
+    ctx.fillStyle = '#5a3a1a'
+    ctx.fillRect(10, 2, 5, 6)
+  }
+
+  private drawWeaponShotgun(ctx: CanvasRenderingContext2D): void {
+    // Receiver (wide)
+    ctx.fillStyle = '#5a3a20'
+    ctx.fillRect(8, -3, 14, 6)
+    // Long barrel
+    ctx.fillStyle = '#999'
+    ctx.fillRect(14, -2, 18, 4)
+    // Forend pump
+    ctx.fillStyle = '#7a5030'
+    ctx.fillRect(20, 2, 7, 3)
+  }
+
+  private drawWeaponAR(ctx: CanvasRenderingContext2D): void {
+    // Upper receiver (long)
+    ctx.fillStyle = '#555'
+    ctx.fillRect(6, -3, 20, 5)
+    // Barrel extension
+    ctx.fillStyle = '#888'
+    ctx.fillRect(22, -1.5, 10, 3)
+    // Box magazine
+    ctx.fillStyle = '#333'
+    ctx.fillRect(12, 2, 7, 9)
+    // Stock stub
+    ctx.fillStyle = '#444'
+    ctx.fillRect(4, -1.5, 4, 3)
+  }
+
+  private drawWeaponSMG(ctx: CanvasRenderingContext2D): void {
+    // Compact body
+    ctx.fillStyle = '#4a4a4a'
+    ctx.fillRect(8, -3, 12, 6)
+    // Short barrel
+    ctx.fillStyle = '#777'
+    ctx.fillRect(16, -1.5, 8, 3)
+    // Vertical magazine
+    ctx.fillStyle = '#333'
+    ctx.fillRect(13, 3, 5, 9)
+    // Forward grip
+    ctx.fillStyle = '#5a3a1a'
+    ctx.fillRect(9, 3, 4, 6)
+  }
+
+  private drawWeaponSniper(ctx: CanvasRenderingContext2D): void {
+    // Very long barrel
+    ctx.fillStyle = '#888'
+    ctx.fillRect(8, -1.5, 30, 3)
+    // Receiver body
+    ctx.fillStyle = '#4a4a3a'
+    ctx.fillRect(8, -3, 14, 6)
+    // Scope body
+    ctx.fillStyle = '#222'
+    ctx.fillRect(11, -7, 10, 4)
+    // Scope lens (front circle)
+    ctx.fillStyle = '#4a88cc'
+    ctx.beginPath()
+    ctx.arc(11, -5, 1.8, 0, Math.PI * 2)
+    ctx.fill()
+    // Stock
+    ctx.fillStyle = '#5a4a2a'
+    ctx.fillRect(5, -1.5, 5, 3)
   }
 }
