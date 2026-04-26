@@ -122,8 +122,8 @@ export function drawZombieComposite(
   let bsx = animFrame.bodyScaleX
   let bsy = animFrame.bodyScaleY
   if (hitRecoilTimer > 0) {
-    bsx *= 0.88
-    bsy *= 0.88
+    bsx *= 0.95
+    bsy *= 0.95
   }
   // Wind-up: compress before strike
   if (windupActive) {

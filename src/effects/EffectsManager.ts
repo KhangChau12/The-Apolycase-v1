@@ -11,9 +11,27 @@ interface LightningEffect {
   maxLife: number
 }
 
+// One arc stroke of a slash mark
+interface SlashStroke {
+  cx: number; cy: number   // arc center
+  r: number                // arc radius
+  startAngle: number
+  endAngle: number
+  lineWidth: number
+  color: string
+}
+
+interface SlashEffect {
+  strokes: SlashStroke[]
+  life: number
+  maxLife: number
+  glowColor: string
+}
+
 export class EffectsManager {
   private particles: Particle[] = []
   private lightnings: LightningEffect[] = []
+  private slashes: SlashEffect[] = []
   private screenFlashAlpha = 0
   private screenFlashColor = '204,26,26'
 
@@ -23,6 +41,8 @@ export class EffectsManager {
     if (this.particles.length > 400) this.particles.splice(0, 40)
     for (const l of this.lightnings) l.life -= dt
     this.lightnings = this.lightnings.filter(l => l.life > 0)
+    for (const s of this.slashes) s.life -= dt
+    this.slashes = this.slashes.filter(s => s.life > 0)
     if (this.screenFlashAlpha > 0) this.screenFlashAlpha = Math.max(0, this.screenFlashAlpha - dt * 1.8)
   }
 
@@ -87,6 +107,37 @@ export class EffectsManager {
         ctx.stroke()
         ctx.restore()
       }
+    }
+
+    // Slash marks — static arc strokes that fade out
+    for (const slash of this.slashes) {
+      const t = slash.life / slash.maxLife          // 1→0 as it fades
+      const alpha = t * t                           // quadratic fade (sharp start, quick fade)
+
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.lineCap = 'round'
+
+      for (const stroke of slash.strokes) {
+        // Glow pass
+        ctx.beginPath()
+        ctx.arc(stroke.cx, stroke.cy, stroke.r, stroke.startAngle, stroke.endAngle)
+        ctx.strokeStyle = slash.glowColor
+        ctx.lineWidth = stroke.lineWidth * 3.5
+        ctx.shadowColor = slash.glowColor
+        ctx.shadowBlur = 10
+        ctx.stroke()
+
+        // Core pass
+        ctx.beginPath()
+        ctx.arc(stroke.cx, stroke.cy, stroke.r, stroke.startAngle, stroke.endAngle)
+        ctx.strokeStyle = stroke.color
+        ctx.lineWidth = stroke.lineWidth
+        ctx.shadowBlur = 0
+        ctx.stroke()
+      }
+
+      ctx.restore()
     }
   }
 
@@ -223,6 +274,62 @@ export class EffectsManager {
 
     if (chains.length > 0) {
       this.lightnings.push({ chains, life: 0.18, maxLife: 0.18 })
+    }
+  }
+
+  // Zombie melee slash at target position — arc-based scratch marks
+  spawnZombieSlash(x: number, y: number, fromAngle: number, archetype: ZombieArchetype): void {
+    // Direction the slash faces: perpendicular to attack angle, so claw marks sweep sideways
+    const sweepDir = fromAngle + Math.PI / 2
+
+    type Cfg = { count: number; color: string; glowColor: string; arcR: number; arcSpan: number; lineWidth: number; spacing: number; life: number }
+    const configs: Record<ZombieArchetype, Cfg> = {
+      regular: { count: 3, color: '#FF5533', glowColor: '#FF2200', arcR: 18, arcSpan: 1.1, lineWidth: 2.5, spacing: 5,  life: 0.22 },
+      fast:    { count: 4, color: '#FF7722', glowColor: '#FF4400', arcR: 14, arcSpan: 1.4, lineWidth: 2.0, spacing: 4,  life: 0.18 },
+      tank:    { count: 2, color: '#CC1100', glowColor: '#880000', arcR: 28, arcSpan: 0.8, lineWidth: 4.5, spacing: 8,  life: 0.28 },
+      armored: { count: 3, color: '#88CCFF', glowColor: '#4488FF', arcR: 20, arcSpan: 1.0, lineWidth: 2.5, spacing: 6,  life: 0.22 },
+      boss:    { count: 5, color: '#FF2200', glowColor: '#CC0000', arcR: 34, arcSpan: 1.3, lineWidth: 3.5, spacing: 7,  life: 0.32 },
+    }
+    const cfg = configs[archetype]
+
+    // Each scratch is an arc centered slightly away from hit point,
+    // so the arc sweeps across the target surface like a claw drag.
+    // Arc center is offset perpendicular to fromAngle, strokes stacked along fromAngle direction.
+    const strokes: SlashStroke[] = []
+    for (let i = 0; i < cfg.count; i++) {
+      // Offset each claw line perpendicular to attack direction
+      const perpOffset = (i - (cfg.count - 1) / 2) * cfg.spacing
+      const cx = x + Math.cos(sweepDir) * perpOffset
+      const cy = y + Math.sin(sweepDir) * perpOffset
+
+      // Arc center is pulled back so the arc curves nicely across the target
+      const pullBack = cfg.arcR * 0.6
+      const arcCx = cx - Math.cos(fromAngle) * pullBack
+      const arcCy = cy - Math.sin(fromAngle) * pullBack
+
+      // Arc spans centered around the attack direction
+      const midAngle = fromAngle
+      strokes.push({
+        cx: arcCx,
+        cy: arcCy,
+        r: cfg.arcR,
+        startAngle: midAngle - cfg.arcSpan / 2,
+        endAngle:   midAngle + cfg.arcSpan / 2,
+        lineWidth:  cfg.lineWidth - i * 0.15,   // taper outer strokes slightly
+        color: cfg.color,
+      })
+    }
+
+    this.slashes.push({ strokes, life: cfg.life, maxLife: cfg.life, glowColor: cfg.glowColor })
+
+    // Small impact sparks at center (kept, but fewer)
+    for (let i = 0; i < 4; i++) {
+      this.particles.push(new Particle(x, y, cfg.color, 2, 50 + Math.random() * 50, {
+        dirAngle: fromAngle + Math.PI + (Math.random() - 0.5) * 1.2,
+        spread: 0.2,
+        sizeDecay: 18,
+        life: 0.10 + Math.random() * 0.06,
+      }))
     }
   }
 
