@@ -171,15 +171,7 @@ export class BreakPanel {
     const repairBtn = this.el.querySelector<HTMLElement>('#bp-repair-base')
     if (repairBtn) this.applyBtnState(repairBtn, T.coreBlue, res.coins >= 60 && g.base.hp < g.base.maxHp, false)
 
-    // Territory expand
-    const crystalCost = g.territory.crystalCostForNextExpansion(res.crystal)
-    const canExpand = res.crystal >= crystalCost
-    const expandBtn = this.el.querySelector<HTMLElement>('#bp-expand')
-    if (expandBtn) {
-      this.applyBtnState(expandBtn, T.crystalCyan, canExpand, false)
-      const costEl = expandBtn.querySelector('.bp-cost') as HTMLElement | null
-      if (costEl) costEl.innerHTML = `${getIcon('gem', 11, T.crystalCyan)} ${crystalCost}`
-    }
+    // (territory expand button removed — now manual via skill tree)
 
     // Weapon buttons
     this.el.querySelectorAll<HTMLElement>('.bp-buy-weapon').forEach(btn => {
@@ -233,8 +225,6 @@ export class BreakPanel {
   private render(): void {
     const g = this.game
     const res = g.resources.res
-    const crystalCost = g.territory.crystalCostForNextExpansion(res.crystal)
-    const canExpand = res.crystal >= crystalCost
     const p = g.player
     const isDuringWave = g.phase === 'playing'
 
@@ -496,31 +486,28 @@ export class BreakPanel {
                 display:flex;align-items:center;gap:6px;
                 background:rgba(0,0,0,0.3);border-radius:3px;padding:5px 10px;
               ">
-                ${getIcon('star', 11, T.amber)}
-                <span style="color:${T.ironGrey};font:10px ${T.font};">Unlocks skill slot</span>
+                ${getIcon('gem', 11, T.crystalCyan)}
+                <span style="color:${T.ironGrey};font:10px ${T.font};"><span style="color:${T.crystalCyan};font-weight:bold;">${res.crystal}</span> crystals</span>
               </div>
             </div>
-            <button id="bp-expand" style="
-              background:${canExpand ? 'rgba(136,238,255,0.06)' : 'rgba(0,0,0,0.2)'};
-              border:1px solid ${canExpand ? 'rgba(136,238,255,0.35)' : 'rgba(44,36,22,0.4)'};
-              border-left:3px solid ${canExpand ? T.crystalCyan : '#2a1a0a'};
+            <div style="color:${T.iron};font:9px ${T.font};margin-bottom:8px;">
+              Territory auto-expands after each boss wave. Use crystals to unlock base skills.
+            </div>
+            <button id="bp-skill-tree" style="
+              background:rgba(136,238,255,0.06);
+              border:1px solid rgba(136,238,255,0.35);
+              border-left:3px solid ${T.crystalCyan};
               border-radius:3px;padding:11px 14px;
-              cursor:${canExpand ? 'pointer' : 'default'};
-              opacity:${canExpand ? '1' : '0.45'};
+              cursor:pointer;
               display:flex;align-items:center;gap:12px;width:100%;
               transition:opacity 0.15s;
-            " ${canExpand ? '' : 'disabled'}>
-              ${getIcon('expand', 16, T.crystalCyan)}
+            ">
+              ${getIcon('star', 16, T.crystalCyan)}
               <span style="flex:1;text-align:left;">
-                <span style="display:block;color:${T.bg};font:bold 12px ${T.font};">Expand Territory</span>
-                <span style="display:block;color:${T.iron};font:9px ${T.font};margin-top:2px;">Unlock a new passive skill slot</span>
+                <span style="display:block;color:${T.bg};font:bold 12px ${T.font};">Base Skill Tree</span>
+                <span style="display:block;color:${T.iron};font:9px ${T.font};margin-top:2px;">Spend crystals to unlock base upgrades</span>
               </span>
-              <span class="bp-cost" style="
-                display:flex;align-items:center;gap:4px;
-                color:${T.crystalCyan};font:bold 12px ${T.font};
-                background:rgba(136,238,255,0.08);border-radius:4px;padding:5px 9px;
-                border:1px solid rgba(136,238,255,0.2);
-              ">${getIcon('gem', 11, T.crystalCyan)} ${crystalCost}</span>
+              ${getIcon('chevron-right', 14, T.crystalCyan)}
             </button>
           </div>
 
@@ -556,9 +543,8 @@ export class BreakPanel {
     this.el.querySelector('#bp-close')?.addEventListener('click', () => this.hide())
     this.el.querySelector('#bp-close-footer')?.addEventListener('click', () => this.hide())
 
-    this.el.querySelector('#bp-expand')?.addEventListener('click', () => {
-      g.expandTerritory()
-      this.show()
+    this.el.querySelector('#bp-skill-tree')?.addEventListener('click', () => {
+      g.openBaseSkillTree()
     })
 
     this.el.querySelectorAll('.bp-stat-up').forEach(btn => {

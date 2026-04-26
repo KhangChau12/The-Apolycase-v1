@@ -16,6 +16,11 @@ export interface PlayerStats {
   level: number
   xp: number
   xpToNext: number
+  lifesteal: number       // fraction of damage dealt restored as HP
+  dodgeChance: number     // chance to fully negate an incoming hit
+  reloadSpeedMult: number // multiplier on reload time (>1 = faster)
+  xpMult: number          // multiplier on XP gained
+  dropBonus: number       // additive bonus to resource drop rate
 }
 
 interface GameRef {
@@ -50,14 +55,31 @@ export class Player {
     level: 1,
     xp: 0,
     xpToNext: 100,
+    lifesteal: 0,
+    dodgeChance: 0,
+    reloadSpeedMult: 1,
+    xpMult: 1,
+    dropBonus: 0,
   }
 
-  // Skill system
+  // Skill flags
   appliedPlayerSkills: Map<PlayerSkillId, number> = new Map()
   bulletCount = 1
   bulletPenetrating = false
   bulletExplosion = false
   fireRateMultiplier = 1.0
+  lastStandEnabled = false
+  berserkerEnabled = false
+  overchargeEnabled = false
+  phantomRoundEnabled = false
+  deathMarkEnabled = false
+
+  // Berserker runtime state
+  berserkerStacks = 0
+  berserkerTimer = 0
+
+  // Overcharge: true right after a reload finishes
+  private overchargeReady = false
 
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
@@ -88,6 +110,13 @@ export class Player {
   get ownedWeapons(): WeaponSlot[] { return this.weaponSlots }
   get activeWeaponIndex(): number  { return this.activeSlotIndex }
 
+  // Effective speed accounting for Last Stand bonus
+  get effectiveSpeed(): number {
+    const base = this.stats.speed
+    if (this.lastStandEnabled && this.stats.hp < this.stats.maxHp * 0.25) return base + 30
+    return base
+  }
+
   // ── Update ────────────────────────────────────────────────────────
 
   update(dt: number, input: InputManager, camera: Camera, game: GameRef): void {
@@ -96,6 +125,7 @@ export class Player {
     this.updateFire(dt, input, game)
     this.updateReload(dt, input, game)
     this.updateWeaponSwitch(input, game)
+    this.updateBerserker(dt)
     if (this.invincibleTimer > 0) this.invincibleTimer -= dt
 
     // Delayed follow bullet for Twin Shot
@@ -120,6 +150,12 @@ export class Player {
         this.pendingFollowBullet = null
       }
     }
+  }
+
+  private updateBerserker(dt: number): void {
+    if (!this.berserkerEnabled || this.berserkerStacks === 0) return
+    this.berserkerTimer -= dt
+    if (this.berserkerTimer <= 0) this.berserkerStacks = 0
   }
 
   private updateWeaponSwitch(input: InputManager, game: GameRef): void {
@@ -155,13 +191,13 @@ export class Player {
     if (len > 0) {
       dx /= len; dy /= len
     }
-    this.x = clamp(this.x + dx * this.stats.speed * dt, 20, 2980)
-    this.y = clamp(this.y + dy * this.stats.speed * dt, 20, 2980)
+    this.x = clamp(this.x + dx * this.effectiveSpeed * dt, 20, 2980)
+    this.y = clamp(this.y + dy * this.effectiveSpeed * dt, 20, 2980)
   }
 
   private updateAim(input: InputManager, camera: Camera, game: GameRef): void {
-    const world = camera.toWorld(input.mouse.x, input.mouse.y)
     void game
+    const world = camera.toWorld(input.mouse.x, input.mouse.y)
     this.angle = angleTo(this.x, this.y, world.x, world.y)
   }
 
@@ -191,6 +227,8 @@ export class Player {
       b.isPenetrating = this.bulletPenetrating
       b.isExplosive = this.bulletExplosion
       b.weaponClass = w.class
+      b.lifesteal = this.stats.lifesteal
+      b.deathMark = this.deathMarkEnabled
       game.bullets.push(b)
 
       // Twin Shot: queue a follow-up bullet with 0.08s delay, same trajectory
@@ -199,7 +237,12 @@ export class Player {
       }
     }
 
-    this.ammoInMag--
+    // Phantom Round: 20% chance to not consume ammo
+    if (!this.phantomRoundEnabled || Math.random() >= 0.2) {
+      this.ammoInMag--
+    }
+
+    this.overchargeReady = false
     game.shake(w.shakeIntensity, w.shakeDuration)
     this.fireCooldown = 1 / (w.fireRate * this.fireRateMultiplier)
   }
@@ -222,7 +265,7 @@ export class Player {
       return
     }
     this.reloading = true
-    this.reloadTimer = this.currentWeapon.reloadTime
+    this.reloadTimer = this.currentWeapon.reloadTime / this.stats.reloadSpeedMult
   }
 
   private finishReload(): void {
@@ -231,10 +274,27 @@ export class Player {
     this.ammoInMag += refill
     this.reserveAmmo -= refill
     this.reloading = false
+    if (this.overchargeEnabled) this.overchargeReady = true
   }
 
   private calcDamage(): number {
-    const base = this.stats.damage
+    let base = this.stats.damage
+
+    // Last Stand: +40% damage below 25% HP
+    if (this.lastStandEnabled && this.stats.hp < this.stats.maxHp * 0.25) {
+      base = Math.floor(base * 1.4)
+    }
+
+    // Berserker: each recent kill adds +5% damage (max +50%)
+    if (this.berserkerEnabled && this.berserkerStacks > 0) {
+      base = Math.floor(base * (1 + Math.min(this.berserkerStacks, 10) * 0.05))
+    }
+
+    // Overcharge: double damage on first shot after reload
+    if (this.overchargeEnabled && this.overchargeReady) {
+      base *= 2
+    }
+
     const crit = Math.random() < this.stats.critChance
     return crit ? Math.floor(base * 2) : base
   }
@@ -243,13 +303,31 @@ export class Player {
 
   takeDamage(amount: number): void {
     if (this.invincibleTimer > 0) return
+    // Dodge chance: skip the hit entirely
+    if (this.stats.dodgeChance > 0 && Math.random() < this.stats.dodgeChance) return
     const reduced = Math.max(1, amount - this.stats.armor)
     this.stats.hp = Math.max(0, this.stats.hp - reduced)
     this.invincibleTimer = 0.8
   }
 
+  // Called by the game when a bullet this player fired hits a zombie
+  onBulletHit(damageDealt: number): void {
+    if (this.stats.lifesteal > 0) {
+      this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + damageDealt * this.stats.lifesteal)
+    }
+  }
+
+  // Called when player kills a zombie
+  onKill(): void {
+    this.kills++
+    if (this.berserkerEnabled) {
+      this.berserkerStacks = Math.min(this.berserkerStacks + 1, 10)
+      this.berserkerTimer = 3
+    }
+  }
+
   addXp(amount: number, onLevelUp?: () => void): void {
-    this.stats.xp += amount
+    this.stats.xp += Math.floor(amount * this.stats.xpMult)
     if (this.stats.xp >= this.stats.xpToNext) {
       this.stats.xp -= this.stats.xpToNext
       this.stats.level++

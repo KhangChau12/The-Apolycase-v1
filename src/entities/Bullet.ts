@@ -12,8 +12,8 @@ export class Bullet {
   get angle(): number { return Math.atan2(this.vy, this.vx) }
   private lifetime = 2.5
 
-  // Weapon class tag for visual rendering dispatch
-  weaponClass: import('../data/weaponData').WeaponClass | null = null
+  // Weapon class tag for visual rendering dispatch (soldierDrone = garrison soldier bullets)
+  weaponClass: import('../data/weaponData').WeaponClass | 'soldierDrone' | null = null
 
   // Special bullet flags
   isPenetrating = false
@@ -22,6 +22,12 @@ export class Bullet {
   burnDps = 0
   isFireball = false
   hitZombies: Set<object> = new Set()  // prevents hitting same zombie twice per pass
+  lifesteal = 0
+  deathMark = false
+  machineGunSlow = false   // slow target on hit (Suppression Mode)
+  armorPiercing = false    // ignore 50% armor on armored/boss (AP Rounds)
+  splashFraction = 0.5     // AoE splash damage fraction (Hellfire Core / bulletExplosion)
+  splashRadius = 60        // AoE splash radius
 
   constructor(x: number, y: number, angle: number, speed: number, damage: number, owner: BulletOwner) {
     this.x = x

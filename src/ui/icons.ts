@@ -12,6 +12,9 @@ export const ICONS: Record<string, (size?: number, color?: string) => string> = 
   zap: (s = 20, c = 'currentColor') => svg(s, c,
     `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>`),
 
+  'tree-branch': (s = 20, c = 'currentColor') => svg(s, c,
+    `<path d="M6 21V5"/><path d="M6 9c0-2.5 1.5-4 4-4h3"/><path d="M10 5c0 2.5 1.5 4 4 4h2"/><path d="M14 9c0 2.5 1.5 4 4 4h2"/><circle cx="6" cy="21" r="1.5"/><circle cx="10" cy="5" r="1.5"/><circle cx="14" cy="9" r="1.5"/><circle cx="18" cy="13" r="1.5"/>`),
+
   crosshair: (s = 20, c = 'currentColor') => svg(s, c,
     `<circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/>`),
 

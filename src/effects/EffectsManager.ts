@@ -235,4 +235,45 @@ export class EffectsManager {
     this.screenFlashAlpha = 0.25
     this.screenFlashColor = '255,107,53'
   }
+
+  // Garrison stomp/shockwave debris — colored shards flying outward
+  spawnShockwaveDebris(x: number, y: number, color: string): void {
+    const count = 10
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.4
+      const spd = 60 + Math.random() * 100
+      this.particles.push(new Particle(x, y, color, 2 + Math.random() * 3, spd, {
+        dirAngle: angle,
+        spread: 0.2,
+        gravity: 25,
+        sizeDecay: 6,
+        life: 0.35 + Math.random() * 0.2,
+      }))
+    }
+    // Small bright core sparks
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.random() * Math.PI * 2
+      this.particles.push(new Particle(x, y, '#FFFFFF', 1.5, 120 + Math.random() * 80, {
+        dirAngle: angle,
+        spread: Math.PI,
+        sizeDecay: 18,
+        life: 0.12 + Math.random() * 0.08,
+      }))
+    }
+  }
+
+  // Garrison medic heal — green cross particles rising from target
+  spawnHealParticles(x: number, y: number): void {
+    const count = 4
+    for (let i = 0; i < count; i++) {
+      const offsetX = (Math.random() - 0.5) * 16
+      this.particles.push(new Particle(x + offsetX, y, '#44FF88', 3 + Math.random() * 3, 18 + Math.random() * 14, {
+        dirAngle: -Math.PI / 2,
+        spread: 0.35,
+        gravity: -8,
+        sizeDecay: 5,
+        life: 0.5 + Math.random() * 0.3,
+      }))
+    }
+  }
 }

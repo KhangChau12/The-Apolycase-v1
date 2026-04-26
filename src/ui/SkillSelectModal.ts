@@ -1,12 +1,51 @@
-import { SkillId, SKILL_DEFS } from '../systems/SkillManager'
 import { T } from './theme'
 import { getIcon } from './icons'
+import type { SkillRarity } from '../data/playerSkillPool'
 
 export interface GenericSkillOption {
   id: string
   label: string
   description: string
   icon: string
+  rarity?: SkillRarity
+}
+
+const RARITY_COLOR: Record<SkillRarity, string> = {
+  common: '#A89880',
+  rare: '#7788FF',
+  legendary: '#E8C84A',
+}
+
+const RARITY_LABEL: Record<SkillRarity, string> = {
+  common: '',
+  rare: 'RARE',
+  legendary: 'LEGENDARY',
+}
+
+function rarityBorder(rarity: SkillRarity | undefined): string {
+  if (!rarity || rarity === 'common') return 'rgba(168,152,128,0.4)'
+  if (rarity === 'rare') return 'rgba(119,136,255,0.6)'
+  return 'rgba(232,200,74,0.8)'
+}
+
+function rarityGlow(rarity: SkillRarity | undefined): string {
+  if (rarity === 'legendary') return '0 0 18px #E8C84A44'
+  if (rarity === 'rare') return '0 0 10px #7788FF22'
+  return 'none'
+}
+
+function rarityBadge(rarity: SkillRarity | undefined): string {
+  if (!rarity || rarity === 'common') return ''
+  const color = RARITY_COLOR[rarity]
+  const label = RARITY_LABEL[rarity]
+  return `<span style="
+    position:absolute;top:6px;right:38px;
+    color:${color};
+    font:bold 8px ${T.font};
+    letter-spacing:1px;
+    text-shadow:0 0 8px ${color}88;
+    opacity:0.9;
+  ">${label}</span>`
 }
 
 export class SkillSelectModal {
@@ -16,17 +55,6 @@ export class SkillSelectModal {
   constructor(_game: unknown) {
     this.el = document.getElementById('skill-modal')!
     this.el.classList.add('hidden')
-  }
-
-  show(options: SkillId[], onSelect: (id: SkillId) => void): void {
-    const defs = options.map(id => SKILL_DEFS.find(s => s.id === id)!)
-    this.showGeneric(
-      defs.map(d => ({ id: d.id, label: d.label, description: d.description, icon: 'star' })),
-      id => onSelect(id as SkillId),
-      'TERRITORY BONUS',
-      'CHOOSE 1 SPECIAL SKILL TO UNLOCK',
-      T.crystalCyan,
-    )
   }
 
   showGeneric(
@@ -54,27 +82,35 @@ export class SkillSelectModal {
         ">${title}</div>
         <div style="color:${T.iron};font:11px ${T.font};text-align:center;letter-spacing:1px;">${subtitle}</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          ${options.map((opt, i) => `
+          ${options.map((opt, i) => {
+            const border = rarityBorder(opt.rarity)
+            const glow = rarityGlow(opt.rarity)
+            const badgeHtml = rarityBadge(opt.rarity)
+            const iconColor = opt.rarity && opt.rarity !== 'common' ? RARITY_COLOR[opt.rarity] : accentColor
+            return `
             <button class="skill-choice" data-id="${opt.id}" style="
+              position:relative;
               background:rgba(20,28,36,0.8);
-              border:1px solid rgba(196,98,45,0.25);
+              border:1px solid ${border};
+              box-shadow:${glow};
               color:${T.bg};
               font:13px ${T.font};padding:14px 16px;border-radius:3px;cursor:pointer;
               text-align:left;display:flex;align-items:center;gap:12px;
               transition:background 0.15s, border-color 0.15s, box-shadow 0.15s;
             "
             onmouseover="this.style.background='rgba(30,42,52,0.95)';this.style.borderColor='${accentColor}99';this.style.boxShadow='0 0 12px ${accentColor}33'"
-            onmouseout="this.style.background='rgba(20,28,36,0.8)';this.style.borderColor='rgba(196,98,45,0.25)';this.style.boxShadow='none'"
+            onmouseout="this.style.background='rgba(20,28,36,0.8)';this.style.borderColor='${border}';this.style.boxShadow='${glow}'"
             >
+              ${badgeHtml}
               <span style="
                 display:flex;align-items:center;justify-content:center;
                 min-width:36px;height:36px;
                 background:rgba(0,0,0,0.35);
                 border-radius:4px;
                 padding:4px;
-              ">${getIcon(opt.icon, 22, accentColor)}</span>
+              ">${getIcon(opt.icon, 22, iconColor)}</span>
               <span style="display:flex;flex-direction:column;gap:4px;flex:1;">
-                <span style="color:${accentColor};font:bold 14px ${T.font};letter-spacing:0.5px;">${opt.label}</span>
+                <span style="color:${iconColor};font:bold 14px ${T.font};letter-spacing:0.5px;">${opt.label}</span>
                 <span style="color:${T.ironGrey};font:11px ${T.font};">${opt.description}</span>
               </span>
               <span style="
@@ -87,8 +123,8 @@ export class SkillSelectModal {
                 padding:2px 5px;
                 border:1px solid ${accentColor}44;
               ">${i + 1}</span>
-            </button>
-          `).join('')}
+            </button>`
+          }).join('')}
         </div>
       </div>
     `

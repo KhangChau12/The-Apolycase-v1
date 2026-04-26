@@ -2,7 +2,7 @@
 export class TerritoryManager {
   radius: number
   level = 0
-  private readonly baseRadius = 300
+  private readonly baseRadius = 390
   private readonly radiusPerLevel = 200
 
   constructor() {
