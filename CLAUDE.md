@@ -21,9 +21,11 @@
 ```
 src/
 ├── core/           Game loop, Camera, InputManager
-├── data/           Static data: weapons, zombies, skills, baseSkillTree, garrisonData
+├── data/           Static data: weapons, zombies, skills, baseSkillTree, garrisonData,
+│                   zombieAnimationData (animation clips, windup durations, combo data)
 ├── effects/        Particle system, EffectsManager
 ├── entities/       Player, Zombie, HomeBase, Tower, Bullet, DropItem, WorkerEntity, GarrisonUnit
+├── rendering/      ZombieLimbs (limb skeleton factories + composite draw)
 ├── systems/        WaveManager, ResourceManager, TerritoryManager, SkillManager, Spawner
 ├── towers/         TowerTypes (profiles), Tower (logic)
 ├── ui/             HUD, BreakPanel, SkillSelectModal, BaseSkillTreeModal, BuildContextMenu,
@@ -115,7 +117,7 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 
 ### `Zombie` (`src/entities/Zombie.ts`)
 - Archetypes: `regular | fast | tank | armored | boss`
-- **`tier: number`** — chỉ áp dụng cho zombie thường; boss luôn tier 0
+- **`tier: number`** — chỉ áp dụng cho zombie thường; boss luôn tier 0 (visual tier tính riêng khi render)
 - Armored: base 50% damage reduction, có thể tăng theo tier qua `damageReduction` (cap 85%)
 - Boss: 2000 HP, drops Crystal
 - **Tier stat scaling** dùng `ZOMBIE_TIER_SCALING` từ `src/data/zombieData.ts`:
@@ -126,7 +128,17 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - **`slowFactor: number`** — fraction speed reduction (0–0.6); set mỗi frame bởi HomeBase nếu trong aura, reset về 0 cuối mỗi frame
 - **`stunTimer: number`** — giây còn lại bị stun; khi > 0 bỏ qua move + attack
 - **`stun(duration)`** — method để set stunTimer (max với value hiện tại)
-- **Visual state fields:** `attackFlashTimer` (0.12s, red arc slash khi tấn công), `wobbleTimer` (tích lũy khi di chuyển, drive blink/trail animation)
+- **Visual state fields:** `attackFlashTimer` (0.12s, dùng nội bộ), `attackAnimTimer` (0.3s, drive `'attack'` animState), `wobbleTimer` (tích lũy khi di chuyển), `hitRecoilTimer` (0.1s, squeeze 95% khi bị hit)
+- **Animation state machine** (`src/data/zombieAnimationData.ts`):
+  - `animState: AnimationState` — `'idle' | 'walk' | 'attack' | 'windup' | 'stun'`
+  - `frameIndex`, `frameTimer`, `currentFrame: AnimationFrame` — frame hiện tại, đọc bởi renderer
+  - `updateAnimation(dt, moving)` — tự động transition state, advance frame
+- **Wind-up attack** — delay thực sự trước khi damage apply:
+  - `windupActive: boolean`, `windupTimer: number`, `windupMax: number`
+  - `WINDUP_DURATIONS`: regular=0.2s, fast=0.15s, tank=0.4s, armored=0.3s, boss=0.4s
+  - Khi `windupTimer <= 0`: apply damage, set `attackAnimTimer=0.3`, gọi `game.spawnZombieSlash()`
+- **Combo damage** — `comboCounter` (0→1→2→reset) nhân với `COMBO_DAMAGE_MULT = [1.0, 1.15, 1.35]`
+- **`game.spawnZombieSlash(x, y, fromAngle, archetype)`** — interface `GameRef` yêu cầu method này; Game.ts delegate sang `effects.spawnZombieSlash()`
 
 ### `Bullet` (`src/entities/Bullet.ts`)
 - Flags: `isFireball`, `isBurning`, `isPenetrating`, `isExplosive`
@@ -316,11 +328,20 @@ Skills are unlocked via `BaseSkillTreeModal` by spending crystal. `BASE_SKILL_TR
 ### `EffectsManager` (`src/effects/EffectsManager.ts`)
 - `particles: Particle[]` — capped at 400
 - `lightnings: LightningEffect[]` — persistent zigzag chains, life = 0.18s
+- `slashes: SlashEffect[]` — melee slash marks với animated sweep-in + staggered fade
 - `spawnLightningChain(points)` — tạo zigzag segments với mid-point random offsets ±28px max
 - `spawnFireTrail(x, y, angle)` — 3 particles/call, backward direction, life 0.1–0.18s
 - `spawnShockwaveDebris(x, y, color)` — 10 debris particles + 6 white sparks, radial outward với gravity — dùng cho garrison stomp impact
 - `spawnHealParticles(x, y)` — 4 particles xanh lá bay lên (gravity âm), dùng cho medic heal visual
+- `spawnZombieSlash(x, y, fromAngle, archetype)` — spawn vết tấn công tại vị trí target; dùng `SlashEffect` (straight-line strokes chạy theo `perp`, không phải arc); mỗi archetype có pattern riêng: regular=3 đường song song cách 8px, fast=4 đường mỏng cách 8px, tank=2 đường dày + dấu X chéo, armored=3 đường ngắn cứng + ricochet line, boss=5 đường rộng dần + dấu X lớn
 - `triggerDamageFlash()` / `triggerExplosionFlash()` — full-screen color overlay
+
+**`SlashEffect` struct** (internal): `strokes: SlashStroke[]`, `life`, `maxLife`, `glowColor`, `flashRadius`, `flashColor`, `impactX`, `impactY` — mỗi `SlashStroke` có `cx, cy, r, startAngle, endAngle, lineWidth, color, delay` + optional `isCrack, crackX1/Y1/X2/Y2` cho straight-line strokes
+
+**Slash render pipeline** (3 phases per slash):
+1. **Impact flash** — radial gradient trắng → màu → transparent, chỉ trong 12% đầu lifetime
+2. **Sweep-in** — stroke reveal dần qua `smoothstep(0, 0.30, elapsed)` trong 30% đầu
+3. **Staggered fade** — mỗi stroke có `delay` (0–0.25) để fade lệch nhau; alpha = `strokeT²`; `isCrack` strokes render là `lineTo` + white centerline 0.7px
 
 ---
 
@@ -441,15 +462,29 @@ render()
 7. HP bar tại y-70
 8. HP text nhỏ `{hp}/{maxHp}` tại y+58
 
-**Zombie rendering** (`renderZombies()` + private `_drawZombieXxx` helpers):
-- **regular**: circle body + head nub + arm stubs + blinking eyes (`wobbleTimer`); tier glow xanh lá, tier 3 thêm spike ring
-- **fast**: elongated triangle + swept fins (double nếu tier≥2) + eye slash + ghost trail phía sau
-- **tank**: rounded square + shoulder pads + spine ridge + saw mouth; tier 1 bolt dots, tier 2 outer ring, tier 3 corona pulse
-- **armored**: pentagon + 3 plate lines + visor slit `#88EEFF`; tier 2 outer pentagon + shoulder ridges, tier 3 chrome fill + electric arcs
-- **boss**: hexagon + 6 fin spikes + rotating tick ring + 3 nested hexagons + 3 red eye cluster + pulsing outer ring
-- **Tier indicator**: N hình thoi amber (◆) phía trên HP bar (thay cho text T{n})
-- **Attack flash**: red arc slash `attackFlashTimer` 0.12s khi zombie tấn công
-- **Không có hurt flash** — bị xóa vì DOT/aura gây white-out liên tục
+**Zombie rendering** (`renderZombies()` — dùng composite limb system từ `src/rendering/ZombieLimbs.ts`):
+- Không còn `_drawZombieXxx` helpers — thay bằng `SKELETON_FACTORIES[archetype](radius, tier)` + `drawZombieComposite()`
+- **Boss visual tier** tính từ `waveManager.waveIndex` tại render time: waves 1–5 → vTier 0, 6–10 → vTier 1, 11+ → vTier 2 (không liên quan đến `z.tier`)
+- **Wind-up scale**: khi `z.windupActive`, body scale compress `(1 - 0.15*windupPct) × (1 + 0.1*windupPct)` trước khi draw
+- **Hit recoil**: `z.hitRecoilTimer > 0` → scale body 95% (squeeze nhẹ)
+- **Stun stars**: 3 vòng tròn trắng orbit tại `radius+10`, rotate theo `Date.now()/400`, alpha fade khi `stunTimer < 0.3`
+- **Tier indicator**: N hình thoi amber (◆) phía trên HP bar
+- **Không còn attack flash arc** trên thân zombie — thay bằng `SlashEffect` tại vị trí target
+
+**`src/rendering/ZombieLimbs.ts`** — Limb skeleton system:
+- `LimbSegment` interface: `id, type ('circle'|'rect'|'triangle'|'line'|'polygon'), x, y, w, h, rotation, color, strokeColor, strokeWidth, glow, glowBlur, alpha, points?, children?`
+- `ZombieRenderParams`: `radius, animFrame, hitRecoilTimer, windupActive, windupPct, glowColor, glowBlur, wobble`
+- `SKELETON_FACTORIES: Record<ZombieArchetype, (r, tier) => LimbSegment[]>` — factory functions, tính toán skeleton mỗi frame dựa vào radius thực tế
+- `drawZombieComposite(ctx, skeleton, params)` — apply body scale → recurse `drawSegment()` cho từng limb
+- Per-archetype tiers (regular/fast/tank/armored: tier 0–3; boss: vTier 0–2) — mỗi tier thêm hoặc thay đổi limb segments
+
+**`src/data/zombieAnimationData.ts`** — Animation data:
+- `AnimationFrame`: `duration, bodyScaleX, bodyScaleY, headOffsetY, armRotL, armRotR, legOffsetL, legOffsetR, limbDeltas?`
+- `AnimationClip`: `frames[], loopable`
+- `ANIMATION_CLIPS: Record<ZombieArchetype, Record<AnimationState, AnimationClip>>` — 5 archetypes × 5 states
+- `WINDUP_DURATIONS: Record<ZombieArchetype, number>` — thời gian wind-up mỗi archetype
+- `COMBO_DAMAGE_MULT = [1.0, 1.15, 1.35]` — damage multiplier theo comboCounter
+- `COMBO_PATTERNS: Record<ZombieArchetype, string[]>` — tên combo (visual label only)
 
 **Zombie soft separation** (`applyZombieSeparation()` — gọi sau zombie update loop):
 - O(n²) pair check, push overlap × 0.5 ra mỗi phía; minDist = `a.radius + b.radius + 2`
@@ -542,7 +577,12 @@ Spawn at wave start via `spawnGarrison()` if `base.garrisonEnabled`. Visual iden
 
 13. **Garrison unit outputs:** GarrisonUnit không tự apply damage hay effects — thay vào đó set pending fields (`pendingSoldierBullets`, `pendingStompSplash`, `pendingHealParticle`) được Game.ts consume mỗi frame. Zombie damage to garrison units uses `z.damage * dt` (continuous DPS). `titanSplashPending` là legacy field — luôn bị nullify, dùng `pendingStompSplash` thay thế.
 
-15. **Zombie tier progression:** Tier của zombie thường được roll tại Spawner theo wave/boss milestones; boss luôn tier 0. Mọi scaling stat/size/xp theo tier đi qua `ZOMBIE_TIER_SCALING` + constructor `Zombie` để giữ behavior tập trung và dễ tune.
+15. **Zombie tier progression:** Tier của zombie thường được roll tại Spawner theo wave/boss milestones; boss luôn tier 0 trong game logic. Mọi scaling stat/size/xp theo tier đi qua `ZOMBIE_TIER_SCALING` + constructor `Zombie` để giữ behavior tập trung và dễ tune.
 
+16. **Zombie attack flow (wind-up):** Attack không apply damage ngay — `handleAttack()` trong Zombie.ts set `windupActive=true` khi `attackCooldown <= 0`, đếm ngược `windupTimer`, rồi apply damage + gọi `game.spawnZombieSlash()` khi timer hết. Không bypass wind-up ở bất kỳ đâu; combo counter tăng sau mỗi strike.
+
+17. **Zombie rendering — composite system:** Không dùng `_drawZombieXxx` helpers nữa. Luôn đi qua `SKELETON_FACTORIES[archetype](radius, tier)` → `drawZombieComposite()`. Boss visual tier tính từ `waveManager.waveIndex` tại render time, không lưu trên entity. Skeleton được tạo mới mỗi frame (lightweight factory, không cache).
+
+18. **Slash effects:** `effects.spawnZombieSlash()` tạo `SlashEffect` gồm các straight-line strokes (`isCrack=true`) chạy vuông góc với hướng tấn công (`perp = fromAngle + PI/2`), spaced 8px dọc theo `fromAngle`. Render trong `effects.renderWorld()` cùng pass với lightning. Mỗi slash có 3 phases: impact flash → sweep-in animation → staggered fade. Không dùng arc geometry cho slash marks — luôn dùng `isCrack` straight-line strokes. Fan sparks (directional, không random) + 3 white core sparks spawn cùng lúc.
 
 Your code will be reviewed by Codex after you finished.

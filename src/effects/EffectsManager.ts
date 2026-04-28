@@ -19,6 +19,10 @@ interface SlashStroke {
   endAngle: number
   lineWidth: number
   color: string
+  delay: number            // 0.0–0.25: fraction of maxLife before this stroke starts fading
+  isCrack?: true           // boss only: render as straight line instead of arc
+  crackX1?: number; crackY1?: number
+  crackX2?: number; crackY2?: number
 }
 
 interface SlashEffect {
@@ -26,6 +30,15 @@ interface SlashEffect {
   life: number
   maxLife: number
   glowColor: string
+  flashRadius: number      // > 0 = draw impact flash circle; 0 = no flash
+  flashColor: string       // mid color of radial gradient flash
+  impactX: number          // world position of hit point
+  impactY: number
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
 }
 
 export class EffectsManager {
@@ -109,32 +122,98 @@ export class EffectsManager {
       }
     }
 
-    // Slash marks — static arc strokes that fade out
+    // Slash marks — animated arc strokes with sweep-in and staggered fade
     for (const slash of this.slashes) {
-      const t = slash.life / slash.maxLife          // 1→0 as it fades
-      const alpha = t * t                           // quadratic fade (sharp start, quick fade)
+      const lifeRatio = slash.life / slash.maxLife   // 1→0 as it fades
+      const elapsed = 1 - lifeRatio
+
+      // Phase 1 — Impact flash: only in first 12% of lifetime
+      if (slash.flashRadius > 0 && lifeRatio > 0.88) {
+        const flashT = (lifeRatio - 0.88) / 0.12
+        ctx.save()
+        ctx.globalAlpha = flashT * 0.85
+        const flashGrad = ctx.createRadialGradient(
+          slash.impactX, slash.impactY, 0,
+          slash.impactX, slash.impactY, slash.flashRadius
+        )
+        flashGrad.addColorStop(0, '#FFFFFF')
+        flashGrad.addColorStop(0.4, slash.flashColor)
+        flashGrad.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = flashGrad
+        ctx.beginPath()
+        ctx.arc(slash.impactX, slash.impactY, slash.flashRadius, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      }
 
       ctx.save()
-      ctx.globalAlpha = alpha
       ctx.lineCap = 'round'
 
       for (const stroke of slash.strokes) {
-        // Glow pass
-        ctx.beginPath()
-        ctx.arc(stroke.cx, stroke.cy, stroke.r, stroke.startAngle, stroke.endAngle)
-        ctx.strokeStyle = slash.glowColor
-        ctx.lineWidth = stroke.lineWidth * 3.5
-        ctx.shadowColor = slash.glowColor
-        ctx.shadowBlur = 10
-        ctx.stroke()
+        // Phase 2 — Sweep-in: reveal arc over first 30% of lifetime
+        const sweepProgress = elapsed < 0.30
+          ? smoothstep(0, 0.30, elapsed)
+          : 1.0
 
-        // Core pass
-        ctx.beginPath()
-        ctx.arc(stroke.cx, stroke.cy, stroke.r, stroke.startAngle, stroke.endAngle)
-        ctx.strokeStyle = stroke.color
-        ctx.lineWidth = stroke.lineWidth
-        ctx.shadowBlur = 0
-        ctx.stroke()
+        // Phase 3 — Staggered fade: each stroke has a delay offset
+        const fadeStart = 1 - stroke.delay
+        const strokeT = lifeRatio < fadeStart
+          ? lifeRatio / fadeStart
+          : 1.0
+        const alpha = strokeT * strokeT   // quadratic fade
+
+        if (alpha <= 0) continue
+
+        ctx.globalAlpha = alpha
+
+        if (stroke.isCrack) {
+          // Boss crack: straight line revealed from start toward end
+          const x1 = stroke.crackX1!
+          const y1 = stroke.crackY1!
+          const x2 = x1 + (stroke.crackX2! - x1) * sweepProgress
+          const y2 = y1 + (stroke.crackY2! - y1) * sweepProgress
+
+          ctx.beginPath()
+          ctx.moveTo(x1, y1)
+          ctx.lineTo(x2, y2)
+          ctx.strokeStyle = stroke.color
+          ctx.lineWidth = stroke.lineWidth
+          ctx.shadowColor = slash.glowColor
+          ctx.shadowBlur = 6
+          ctx.stroke()
+
+          // Bright centerline
+          ctx.beginPath()
+          ctx.moveTo(x1, y1)
+          ctx.lineTo(x2, y2)
+          ctx.strokeStyle = '#FFFFFF'
+          ctx.lineWidth = 0.7
+          ctx.shadowBlur = 0
+          ctx.globalAlpha = alpha * 0.4
+          ctx.stroke()
+
+        } else {
+          // Arc stroke revealed from startAngle toward endAngle
+          const span = stroke.endAngle - stroke.startAngle
+          const visibleEnd = stroke.startAngle + span * sweepProgress
+
+          // Glow pass
+          ctx.beginPath()
+          ctx.arc(stroke.cx, stroke.cy, stroke.r, stroke.startAngle, visibleEnd)
+          ctx.strokeStyle = slash.glowColor
+          ctx.lineWidth = stroke.lineWidth * 3.5
+          ctx.shadowColor = slash.glowColor
+          ctx.shadowBlur = 12
+          ctx.stroke()
+
+          // Core pass
+          ctx.beginPath()
+          ctx.arc(stroke.cx, stroke.cy, stroke.r, stroke.startAngle, visibleEnd)
+          ctx.strokeStyle = stroke.color
+          ctx.lineWidth = stroke.lineWidth
+          ctx.shadowBlur = 0
+          ctx.stroke()
+        }
       }
 
       ctx.restore()
@@ -277,58 +356,153 @@ export class EffectsManager {
     }
   }
 
-  // Zombie melee slash at target position — arc-based scratch marks
+  // Zombie melee slash at target position
   spawnZombieSlash(x: number, y: number, fromAngle: number, archetype: ZombieArchetype): void {
-    // Direction the slash faces: perpendicular to attack angle, so claw marks sweep sideways
-    const sweepDir = fromAngle + Math.PI / 2
+    const perp = fromAngle + Math.PI / 2  // perpendicular to attack direction
 
-    type Cfg = { count: number; color: string; glowColor: string; arcR: number; arcSpan: number; lineWidth: number; spacing: number; life: number }
-    const configs: Record<ZombieArchetype, Cfg> = {
-      regular: { count: 3, color: '#FF5533', glowColor: '#FF2200', arcR: 18, arcSpan: 1.1, lineWidth: 2.5, spacing: 5,  life: 0.22 },
-      fast:    { count: 4, color: '#FF7722', glowColor: '#FF4400', arcR: 14, arcSpan: 1.4, lineWidth: 2.0, spacing: 4,  life: 0.18 },
-      tank:    { count: 2, color: '#CC1100', glowColor: '#880000', arcR: 28, arcSpan: 0.8, lineWidth: 4.5, spacing: 8,  life: 0.28 },
-      armored: { count: 3, color: '#88CCFF', glowColor: '#4488FF', arcR: 20, arcSpan: 1.0, lineWidth: 2.5, spacing: 6,  life: 0.22 },
-      boss:    { count: 5, color: '#FF2200', glowColor: '#CC0000', arcR: 34, arcSpan: 1.3, lineWidth: 3.5, spacing: 7,  life: 0.32 },
-    }
-    const cfg = configs[archetype]
+    // Helper: push a crack line stroke
+    const crack = (
+      x1: number, y1: number, x2: number, y2: number,
+      color: string, lw: number, delay: number
+    ): SlashStroke => ({
+      cx: 0, cy: 0, r: 0, startAngle: 0, endAngle: 0,
+      lineWidth: lw, color, delay,
+      isCrack: true, crackX1: x1, crackY1: y1, crackX2: x2, crackY2: y2,
+    })
 
-    // Each scratch is an arc centered slightly away from hit point,
-    // so the arc sweeps across the target surface like a claw drag.
-    // Arc center is offset perpendicular to fromAngle, strokes stacked along fromAngle direction.
+    // Helper: offset a point along a direction
+    const offset = (ox: number, oy: number, angle: number, dist: number) =>
+      [ox + Math.cos(angle) * dist, oy + Math.sin(angle) * dist] as [number, number]
+
     const strokes: SlashStroke[] = []
-    for (let i = 0; i < cfg.count; i++) {
-      // Offset each claw line perpendicular to attack direction
-      const perpOffset = (i - (cfg.count - 1) / 2) * cfg.spacing
-      const cx = x + Math.cos(sweepDir) * perpOffset
-      const cy = y + Math.sin(sweepDir) * perpOffset
 
-      // Arc center is pulled back so the arc curves nicely across the target
-      const pullBack = cfg.arcR * 0.6
-      const arcCx = cx - Math.cos(fromAngle) * pullBack
-      const arcCy = cy - Math.sin(fromAngle) * pullBack
+    if (archetype === 'regular') {
+      // 3 claw marks running along perp (perpendicular to attack direction),
+      // spaced 8px apart along fromAngle. Like 3 parallel horizontal scratches
+      // when viewed from the zombie's perspective.
+      const lineLen = 26
+      const fwdOffsets = [-8, 0, 8]
+      const widths     = [2.2, 2.8, 2.2]
+      for (let i = 0; i < 3; i++) {
+        const ox = Math.cos(fromAngle) * fwdOffsets[i]
+        const oy = Math.sin(fromAngle) * fwdOffsets[i]
+        const [sx, sy] = offset(x + ox, y + oy, perp, -lineLen / 2)
+        const [ex, ey] = offset(x + ox, y + oy, perp,  lineLen / 2)
+        strokes.push(crack(sx, sy, ex, ey, '#FF5533', widths[i], i * 0.07))
+      }
 
-      // Arc spans centered around the attack direction
-      const midAngle = fromAngle
-      strokes.push({
-        cx: arcCx,
-        cy: arcCy,
-        r: cfg.arcR,
-        startAngle: midAngle - cfg.arcSpan / 2,
-        endAngle:   midAngle + cfg.arcSpan / 2,
-        lineWidth:  cfg.lineWidth - i * 0.15,   // taper outer strokes slightly
-        color: cfg.color,
-      })
+    } else if (archetype === 'fast') {
+      // 4 thin claw marks along perp, spaced 8px along fromAngle.
+      // Slightly longer and thinner than regular.
+      const lineLen    = 28
+      const fwdOffsets = [-12, -4, 4, 12]
+      const widths     = [1.4, 1.8, 1.8, 1.4]
+      for (let i = 0; i < 4; i++) {
+        const ox = Math.cos(fromAngle) * fwdOffsets[i]
+        const oy = Math.sin(fromAngle) * fwdOffsets[i]
+        const [sx, sy] = offset(x + ox, y + oy, perp, -lineLen / 2)
+        const [ex, ey] = offset(x + ox, y + oy, perp,  lineLen / 2)
+        strokes.push(crack(sx, sy, ex, ey, '#FF8833', widths[i], i * 0.05))
+      }
+
+    } else if (archetype === 'tank') {
+      // 2 thick claw marks along perp, spaced 8px, plus X cross for brutality.
+      const lineLen    = 32
+      const fwdOffsets = [-8, 8]
+      const widths     = [5.5, 5.0]
+      for (let i = 0; i < 2; i++) {
+        const ox = Math.cos(fromAngle) * fwdOffsets[i]
+        const oy = Math.sin(fromAngle) * fwdOffsets[i]
+        const [sx, sy] = offset(x + ox, y + oy, perp, -lineLen / 2)
+        const [ex, ey] = offset(x + ox, y + oy, perp,  lineLen / 2)
+        strokes.push(crack(sx, sy, ex, ey, i === 0 ? '#BB1100' : '#AA1100', widths[i], i * 0.06))
+      }
+      // X cross overlay
+      const xLen = 36
+      for (const [sign, delay] of [[-1, 0.05], [1, 0.09]] as const) {
+        const a = fromAngle + sign * 0.62
+        const [sx, sy] = offset(x, y, a + Math.PI, xLen * 0.4)
+        const [ex, ey] = offset(x, y, a,           xLen * 0.6)
+        strokes.push(crack(sx, sy, ex, ey, '#880000', 3.5, delay))
+      }
+
+    } else if (archetype === 'armored') {
+      // 3 short rigid marks along perp, spaced 8px, plus perpendicular groove.
+      const lineLen    = 22
+      const fwdOffsets = [-8, 0, 8]
+      const widths     = [1.8, 2.4, 1.8]
+      for (let i = 0; i < 3; i++) {
+        const ox = Math.cos(fromAngle) * fwdOffsets[i]
+        const oy = Math.sin(fromAngle) * fwdOffsets[i]
+        const [sx, sy] = offset(x + ox, y + oy, perp, -lineLen / 2)
+        const [ex, ey] = offset(x + ox, y + oy, perp,  lineLen / 2)
+        strokes.push(crack(sx, sy, ex, ey, '#AADDFF', widths[i], i * 0.07))
+      }
+      // Diagonal ricochet line at ±45°
+      const [rx1, ry1] = offset(x, y, fromAngle - 0.78, -20)
+      const [rx2, ry2] = offset(x, y, fromAngle - 0.78,  20)
+      strokes.push(crack(rx1, ry1, rx2, ry2, '#88BBFF', 1.4, 0.06))
+
+    } else {
+      // boss: 5 wide marks along perp, spaced 8px, plus X cross
+      const lineLen    = 46
+      const fwdOffsets = [-16, -8, 0, 8, 16]
+      const widths     = [3.5, 4.5, 5.5, 4.5, 3.5]
+      for (let i = 0; i < 5; i++) {
+        const ox = Math.cos(fromAngle) * fwdOffsets[i]
+        const oy = Math.sin(fromAngle) * fwdOffsets[i]
+        const [sx, sy] = offset(x + ox, y + oy, perp, -lineLen / 2)
+        const [ex, ey] = offset(x + ox, y + oy, perp,  lineLen / 2)
+        strokes.push(crack(sx, sy, ex, ey, '#CC1166', widths[i], i * 0.05))
+      }
+      // X crack lines
+      const xLen = 56
+      for (const [sign, delay] of [[-1, 0.12], [1, 0.16]] as const) {
+        const a = fromAngle + sign * 0.62
+        const [x1, y1] = offset(x, y, a + Math.PI, xLen * 0.42)
+        const [x2, y2] = offset(x, y, a,           xLen * 0.58)
+        strokes.push(crack(x1, y1, x2, y2, '#3A0018', 3.2, delay))
+      }
     }
 
-    this.slashes.push({ strokes, life: cfg.life, maxLife: cfg.life, glowColor: cfg.glowColor })
+    // Config per archetype for flash + sparks
+    type SparkCfg = { flashR: number; flashC: string; sparkN: number; sparkC: string; spd: [number,number]; slife: [number,number]; glowC: string; life: number }
+    const scfg: Record<ZombieArchetype, SparkCfg> = {
+      regular: { flashR: 14, flashC: '#FFAA88', sparkN: 6,  sparkC: '#FF6644', spd: [55,130],  slife: [0.10,0.16], glowC: '#FF2200', life: 0.22 },
+      fast:    { flashR: 10, flashC: '#FFCC88', sparkN: 8,  sparkC: '#FFAA44', spd: [70,180],  slife: [0.07,0.12], glowC: '#FF5500', life: 0.16 },
+      tank:    { flashR: 22, flashC: '#FF8866', sparkN: 5,  sparkC: '#CC3300', spd: [40,90],   slife: [0.16,0.26], glowC: '#660000', life: 0.32 },
+      armored: { flashR: 16, flashC: '#DDEEFF', sparkN: 10, sparkC: '#88CCFF', spd: [80,200],  slife: [0.08,0.14], glowC: '#5599FF', life: 0.20 },
+      boss:    { flashR: 36, flashC: '#FFAADD', sparkN: 14, sparkC: '#FF88CC', spd: [60,160],  slife: [0.14,0.22], glowC: '#880044', life: 0.38 },
+    }
+    const sc = scfg[archetype]
 
-    // Small impact sparks at center (kept, but fewer)
-    for (let i = 0; i < 4; i++) {
-      this.particles.push(new Particle(x, y, cfg.color, 2, 50 + Math.random() * 50, {
-        dirAngle: fromAngle + Math.PI + (Math.random() - 0.5) * 1.2,
-        spread: 0.2,
-        sizeDecay: 18,
-        life: 0.10 + Math.random() * 0.06,
+    this.slashes.push({
+      strokes, life: sc.life, maxLife: sc.life, glowColor: sc.glowC,
+      flashRadius: sc.flashR, flashColor: sc.flashC,
+      impactX: x, impactY: y,
+    })
+
+    // Directional fan sparks spreading away from zombie
+    const sparkDir = fromAngle + Math.PI
+    for (let i = 0; i < sc.sparkN; i++) {
+      const t = sc.sparkN > 1 ? i / (sc.sparkN - 1) : 0.5
+      const spreadAngle = (t - 0.5) * (Math.PI * 0.9)
+      const speed = sc.spd[0] + Math.random() * (sc.spd[1] - sc.spd[0])
+      const life  = sc.slife[0] + Math.random() * (sc.slife[1] - sc.slife[0])
+      this.particles.push(new Particle(x, y, sc.sparkC, 1.5 + Math.random() * 1.5, speed, {
+        dirAngle: sparkDir + spreadAngle,
+        spread: 0.12,
+        sizeDecay: 14,
+        life,
+      }))
+    }
+    // 3 bright white core sparks
+    for (let i = 0; i < 3; i++) {
+      this.particles.push(new Particle(x, y, '#FFFFFF', 1.5, 80 + Math.random() * 60, {
+        dirAngle: sparkDir + (Math.random() - 0.5) * 0.8,
+        spread: 0.0,
+        sizeDecay: 20,
+        life: 0.06 + Math.random() * 0.04,
       }))
     }
   }
