@@ -1096,6 +1096,8 @@ export class Game {
         this.drawFreezeTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'poisonTower') {
         this.drawPoisonTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+      } else if (t.profile.type === 'repairTower') {
+        this.drawRepairTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else {
         ctx.fillStyle = s.fill
         ctx.strokeStyle = s.stroke
@@ -1115,7 +1117,10 @@ export class Game {
       ctx.fillRect(-14, -22, 28 * hpPct, 4)
 
       // Type icon (skip towers with custom body renderers)
-      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower' && t.profile.type !== 'machineGunTower' && t.profile.type !== 'freezeTower' && t.profile.type !== 'poisonTower') {
+      const hasCustomBody = t.profile.type === 'fireTower' || t.profile.type === 'electricTower'
+        || t.profile.type === 'machineGunTower' || t.profile.type === 'freezeTower'
+        || t.profile.type === 'poisonTower' || t.profile.type === 'repairTower'
+      if (!hasCustomBody) {
         drawIcon(ctx, t.profile.type, s.stroke)
       }
 
@@ -2168,6 +2173,65 @@ export class Game {
       ctx.fillStyle = level >= 2 ? '#AAEE22' : '#88CC44'
       ctx.shadowColor = stroke
       ctx.shadowBlur = 4
+      ctx.fill()
+      ctx.restore()
+    }
+
+    ctx.shadowBlur = 0
+  }
+
+  private drawRepairTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+    const lw = inspected ? 3 : 2
+    const pulse = Math.sin(Date.now() / 700) * 0.5 + 0.5
+
+    // Rounded square base (workshop pad)
+    ctx.beginPath()
+    const cr = 3, s2 = 11
+    ctx.moveTo(-s2 + cr, -s2)
+    ctx.lineTo( s2 - cr, -s2)
+    ctx.arcTo( s2, -s2,  s2, -s2 + cr, cr)
+    ctx.lineTo( s2,  s2 - cr)
+    ctx.arcTo( s2,  s2,  s2 - cr,  s2, cr)
+    ctx.lineTo(-s2 + cr,  s2)
+    ctx.arcTo(-s2,  s2, -s2,  s2 - cr, cr)
+    ctx.lineTo(-s2, -s2 + cr)
+    ctx.arcTo(-s2, -s2, -s2 + cr, -s2, cr)
+    ctx.closePath()
+    ctx.fillStyle = '#0a1810'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.fill()
+    ctx.stroke()
+
+    // Wrench cross symbol (horizontal + diagonal bar = wrench silhouette)
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    // Vertical bar
+    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(0, 7); ctx.stroke()
+    // Horizontal bar
+    ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.stroke()
+    ctx.lineCap = 'butt'
+
+    // Diagonal accent line (wrench head suggestion)
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 1.2
+    ctx.globalAlpha = 0.5
+    ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(5, 5); ctx.stroke()
+    ctx.globalAlpha = 1
+
+    // Worker beacon: small pulsing dot in corner (level 2+ = 2 dots)
+    const beaconCount = level >= 2 ? 2 : 1
+    for (let i = 0; i < beaconCount; i++) {
+      const bx = 6 - i * 5
+      const by = 6
+      ctx.save()
+      ctx.globalAlpha = 0.6 + pulse * 0.4
+      ctx.shadowColor = stroke
+      ctx.shadowBlur = 5 + pulse * 3
+      ctx.beginPath()
+      ctx.arc(bx, by, level >= 3 ? 2.5 : 2, 0, Math.PI * 2)
+      ctx.fillStyle = stroke
       ctx.fill()
       ctx.restore()
     }
