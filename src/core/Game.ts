@@ -524,8 +524,8 @@ export class Game {
             z.poisonTimer = b.poisonDuration
           }
           if (b.isBurning && !b.isPoisoned) {
-            z.burnTimer = b.burnDps > 0 ? 3 : 0
-            z.burnDps = b.burnDps
+            z.burnTimer = Math.max(z.burnTimer, b.burnDps > 0 ? 3 : 0)
+            z.burnDps = Math.max(z.burnDps, b.burnDps)
           }
           if (b.isExplosive) {
             const splashR = b.splashRadius
