@@ -78,7 +78,7 @@ TutorialOverlay → start() → enterBreak(10s) → exitBreak() → [playing pha
 - **v1.7 skill runtime state:** `acidCoatingStacks`, `kineticHitStreak`, `kineticLastTarget`, `focusedFireStacks`, `focusedFireMaxStacks`, `focusedLastAngle`, `executionerReady`, `executionerTimer`
 - **`_kineticStunPending: boolean`** — consumed by Game.ts each frame to apply stun to `kineticLastTarget`
 - **Berserker runtime state:** `berserkerStacks`, `berserkerTimer` — reset về 0 sau 3s không kill
-- **Overcharge:** `overchargeReady = true` sau mỗi lần reload xong, reset sau phát bắn đầu tiên
+- **Overcharge:** `_overchargeReady` (private) + public getter `overchargeReady` — true sau mỗi lần reload xong, reset sau phát bắn đầu tiên; visual: spinning dashed cyan ring khi ready
 - **Phantom Round:** 20% chance bắn không tốn đạn
 - Twin Shot: `pendingFollowBullet` — spawn viên 2 sau 0.08s delay, cùng góc
 - **`appliedPlayerSkills: Map<PlayerSkillId, number>`** — track stack count của từng skill đã apply, dùng bởi HUD Upgrade Stats
@@ -115,7 +115,8 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - **`muzzleFlashTimer: number`** / **`muzzleFlashAngle: number`** — set khi tower fires (0.06–0.12s); `renderTowers()` draws a colored spike along angle; decays each frame in `tower.update()`
 - **`auraDamageBonus: number`** — fraction bonus damage từ HomeBase aura (0.0–0.25); set mỗi frame bởi `base.applyAura()`
 - **`auraRangeBonus: number`** — fraction bonus range từ HomeBase aura; reset về 0 nếu ra ngoài aura
-- Tower dùng `effectiveDamage()` và `effectiveRange()` private helpers khi bắn
+- **`neuralNetworkBonus: number`** — bonus damage từ Neural Network (towerNetworkSync): +5% per other tower in aura; set bởi `applyAura()` = `(towersInAura - 1) * 0.05`
+- Tower dùng `effectiveDamage()` và `effectiveRange()` private helpers khi bắn; `effectiveDamage` bao gồm cả `neuralNetworkBonus`
 
 ### `WorkerEntity` (`src/entities/WorkerEntity.ts`)
 - 3 workers spawn mỗi repairTower (từ `Game.placeTower`)
@@ -173,6 +174,11 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - **`isPoisoned: boolean`** / `poisonDps: number` / `poisonDuration: number` — poison tower bullets; hit zombie tăng `poisonStacks` capped tại `poisonMaxStacks`
 - **`canRicochet: boolean`** / `hasRichocheted: boolean`** — ricochetRounds skill; khi bullet expires, spawn ricochet bullet nếu chưa bounce
 
+### `DropItem` (`src/entities/DropItem.ts`)
+- **`lifetime = 20`** (public) — giây còn lại trước khi tự pick; render flicker khi < 5s, fade alpha = lifetime/5
+- `picked = false` — set true khi collected hoặc lifetime hết
+- `magnetActive` / `attractTo(px, py)` — Game.ts gọi khi drop trong 3× pickup range
+
 ### `HomeBase` (`src/entities/HomeBase.ts`)
 - **Visual state fields:** `rotationAngle` (tăng 0.4 rad/s, drive outer ring rotation), `pulseTimer` (tăng mỗi dt, drive inner core glow pulse) — cả hai increment trong `update()`
 - Aura: heal towers/player, DOT zombies, slow/stun zombies, buff towers
@@ -181,7 +187,7 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - **`towerDamageAura: number`** / **`towerRangeAura: number`** — bonus fraction cho towers trong aura
 - **`overlordAuraEnabled: boolean`** — override cả hai về +25% (Legendary)
 - **`shieldPulseEnabled`**, **`shieldHp`**, **`shieldPulseMaxHp`**, **`shieldPulseCooldown`** — Barrier Pulse system
-- **`stunPulseEnabled`**, **`stunPulseCooldownMax`** — Shockwave pulse mỗi 10s stun 1.5s
+- **`stunPulseEnabled`**, **`stunPulseCooldownMax`** — Shockwave pulse mỗi 10s stun 1.5s; khi fire: set `pendingStunPulse = true` (consumed by Game.ts cho VFX + shake)
 - **`counterStrikeEnabled`** — khi take damage, set `pendingCounterStrike = attacker` để Game xử lý
 - **`garrisonEnabled`** — set true bởi `garrisonCall` skill; triggers `spawnGarrison()` each wave
 - **`garrisonUnitCount`** (default 2), **`garrisonHpMult`**, **`garrisonDamageMult`** — base garrison stats
