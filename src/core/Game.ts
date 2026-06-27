@@ -1877,6 +1877,25 @@ export class Game {
       ctx.restore()
     }
 
+    // Last Stand active — red danger ring when HP < 25%
+    if (p.lastStandEnabled && p.stats.hp / p.stats.maxHp < 0.25) {
+      const now2 = Date.now()
+      const danger = 0.6 + 0.4 * Math.abs(Math.sin(now2 / 180))
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.beginPath()
+      ctx.arc(0, 0, 18, 0, Math.PI * 2)
+      ctx.strokeStyle = T.blood
+      ctx.lineWidth = 2
+      ctx.shadowColor = T.blood
+      ctx.shadowBlur = 20
+      ctx.globalAlpha = danger
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+      ctx.restore()
+    }
+
     // Executioner ready aura — gold pulsing ring
     if (p.executionerEnabled && p.executionerReady) {
       const pulseR = 20 + 3 * Math.sin(Date.now() / 120)
