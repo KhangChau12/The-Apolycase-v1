@@ -1090,6 +1090,8 @@ export class Game {
         this.drawFireTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'electricTower') {
         this.drawElectricTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+      } else if (t.profile.type === 'machineGunTower') {
+        this.drawMachineGunTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else {
         ctx.fillStyle = s.fill
         ctx.strokeStyle = s.stroke
@@ -1109,7 +1111,7 @@ export class Game {
       ctx.fillRect(-14, -22, 28 * hpPct, 4)
 
       // Type icon (skip towers with custom body renderers)
-      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower') {
+      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower' && t.profile.type !== 'machineGunTower') {
         drawIcon(ctx, t.profile.type, s.stroke)
       }
 
@@ -1989,6 +1991,68 @@ export class Game {
       }
       ctx.restore()
     }
+
+    ctx.shadowBlur = 0
+  }
+
+  private drawMachineGunTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+    const lw = inspected ? 3 : 2
+
+    // Hexagonal turret body
+    ctx.beginPath()
+    const bodyR = 11
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 - Math.PI / 6
+      const x = Math.cos(a) * bodyR
+      const y = Math.sin(a) * bodyR
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    }
+    ctx.closePath()
+    ctx.fillStyle = '#1a100a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.fill()
+    ctx.stroke()
+
+    // Ammo drum: circle on left side
+    const drumR = level >= 2 ? 5 : 4
+    ctx.beginPath()
+    ctx.arc(-9, 2, drumR, 0, Math.PI * 2)
+    ctx.fillStyle = '#2a1800'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 1.2
+    ctx.fill()
+    ctx.stroke()
+    // Drum detail cross
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 0.8
+    ctx.globalAlpha = 0.5
+    ctx.beginPath(); ctx.moveTo(-9, 2 - drumR + 1); ctx.lineTo(-9, 2 + drumR - 1); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(-9 - drumR + 1, 2); ctx.lineTo(-9 + drumR - 1, 2); ctx.stroke()
+    ctx.globalAlpha = 1
+
+    // Barrel: thick stub pointing right (East)
+    const barrelLen = level >= 3 ? 14 : 12
+    ctx.fillStyle = '#3a2000'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.beginPath()
+    ctx.rect(6, -3, barrelLen, 6)
+    ctx.fill()
+    ctx.stroke()
+
+    // Muzzle flash ring at barrel tip
+    const mx = 6 + barrelLen
+    ctx.save()
+    const flashAlpha = 0.35 + Math.sin(Date.now() / 80) * 0.25
+    ctx.globalAlpha = Math.max(0, flashAlpha)
+    ctx.beginPath()
+    ctx.arc(mx, 0, 4, 0, Math.PI * 2)
+    ctx.fillStyle = T.amber
+    ctx.shadowColor = T.amber
+    ctx.shadowBlur = 6
+    ctx.fill()
+    ctx.restore()
 
     ctx.shadowBlur = 0
   }
