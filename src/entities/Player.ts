@@ -97,6 +97,11 @@ export class Player {
   executionerReady = false
   executionerTimer = 0
 
+  // Sniper hold-breath: charge while mouse held, bonus shot at 0.4s
+  holdBreathTimer = 0
+  holdBreathReady = false
+  private static readonly HOLD_BREATH_CHARGE = 0.4
+
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
   private activeSlotIndex = 0
@@ -126,10 +131,11 @@ export class Player {
   get ownedWeapons(): WeaponSlot[] { return this.weaponSlots }
   get activeWeaponIndex(): number  { return this.activeSlotIndex }
 
-  // Effective speed accounting for Last Stand bonus
+  // Effective speed accounting for Last Stand bonus and sniper hold-breath penalty
   get effectiveSpeed(): number {
-    const base = this.stats.speed
-    if (this.lastStandEnabled && this.stats.hp < this.stats.maxHp * 0.25) return base + 30
+    let base = this.stats.speed
+    if (this.lastStandEnabled && this.stats.hp < this.stats.maxHp * 0.25) base += 30
+    if (this.currentWeapon.class === 'sniperRifle' && this.holdBreathTimer > 0) base *= 0.3
     return base
   }
 
@@ -228,14 +234,31 @@ export class Player {
   }
 
   private updateFire(dt: number, input: InputManager, game: GameRef): void {
-    if (this.fireCooldown > 0) { this.fireCooldown -= dt; return }
+    if (this.fireCooldown > 0) this.fireCooldown -= dt
+
+    const w = this.currentWeapon
+
+    // Sniper hold-breath: accumulate while mouse held (even during fire cooldown)
+    if (w.class === 'sniperRifle') {
+      if (input.mouse.down && !this.reloading && this.ammoInMag > 0) {
+        this.holdBreathTimer = Math.min(this.holdBreathTimer + dt, Player.HOLD_BREATH_CHARGE)
+        this.holdBreathReady = this.holdBreathTimer >= Player.HOLD_BREATH_CHARGE
+      } else if (!input.mouse.down) {
+        this.holdBreathTimer = 0
+        this.holdBreathReady = false
+      }
+    } else {
+      this.holdBreathTimer = 0
+      this.holdBreathReady = false
+    }
+
+    if (this.fireCooldown > 0) return
     if (!input.mouse.down || this.reloading) return
     if (this.ammoInMag <= 0) {
       this.startReload(game)
       return
     }
 
-    const w = this.currentWeapon
     const basePellets = w.class === 'shotgun' ? 8 : 1
 
     // Focused Fire: track consecutive angle
@@ -249,10 +272,15 @@ export class Player {
       this.focusedLastAngle = this.angle
     }
 
+    // Sniper hold-breath bonus: perfect shot on full charge
+    const sniperPerfect = w.class === 'sniperRifle' && this.holdBreathReady
+    const spreadDeg = sniperPerfect ? 0 : w.spread
+
     for (let i = 0; i < basePellets; i++) {
-      const spread = (Math.random() - 0.5) * (w.spread * Math.PI / 180)
+      const spread = (Math.random() - 0.5) * (spreadDeg * Math.PI / 180)
       const angle = this.angle + spread
-      const dmg = this.calcDamage()
+      let dmg = this.calcDamage()
+      if (sniperPerfect) dmg = Math.floor(dmg * 1.5)
       const b = new Bullet(
         this.x + Math.cos(this.angle) * 18,
         this.y + Math.sin(this.angle) * 18,
@@ -289,6 +317,11 @@ export class Player {
     }
 
     this.overchargeReady = false
+    // Reset sniper hold-breath after firing
+    if (w.class === 'sniperRifle') {
+      this.holdBreathTimer = 0
+      this.holdBreathReady = false
+    }
     game.shake(w.shakeIntensity, w.shakeDuration)
     game.audio?.playGunshot(w.class)
     this.fireCooldown = 1 / (w.fireRate * this.fireRateMultiplier)

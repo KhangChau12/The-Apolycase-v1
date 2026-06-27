@@ -221,6 +221,12 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 
 ### Weapon Special Mechanics
 
+**Sniper hold-breath** (`sniper_awp`):
+- **Mechanic:** Holding mouse button charges a "breath hold" (0→0.4s). While charging: player speed is reduced by 70%. After 0.4s charge: spread drops 0.5°→0° and the next shot deals +50% bonus damage ("perfect shot"). Releasing mouse before 0.4s cancels the charge with no bonus. The `holdBreathTimer` field on Player tracks charge progress; `holdBreathReady` becomes true at 0.4s.
+- **Trigger condition:** `w.class === 'sniperRifle'` in Player `updateFire()`. While `mouse.down && !fired`: accumulate `holdBreathTimer`. On fire: if `holdBreathReady`, multiply damage ×1.5 and set spread to 0. Reset timer on any shot or release.
+- **Implementation:** `Player.holdBreathTimer`, `holdBreathReady` fields (only active when currentWeapon is sniperRifle). Speed penalty applied in `effectiveSpeed` getter. Spread override in `calcSpread()` helper at fire time.
+- **Why it fits:** Sniper costs 550 (most expensive weapon). Its 0.5/s fire rate already means deliberate aim. Hold-breath rewards patience: stop moving for 0.4s to get a guaranteed perfect shot. This is the exact opposite of SMG's spray-and-pray, and creates real decisions (am I safe enough to stop moving?). No other weapon interacts with player speed mid-combat.
+
 **Shotgun knockback** (`shotgun_870`):
 - **Mechanic:** Each shotgun pellet that hits a zombie applies a small knockback impulse (20px) away from the bullet direction. Multiple pellets hitting the same zombie in one blast stack — a center-mass hit from ~5 pellets pushes ~80-100px total; spread reduces outer pellet contribution. `b.knockback = 20` set on each pellet bullet in Player.ts.
 - **Trigger condition:** `b.weaponClass === 'shotgun'` on bullet hit in Game.ts bullet collision loop; apply push on `zombie.x/y` proportional to hit count.
