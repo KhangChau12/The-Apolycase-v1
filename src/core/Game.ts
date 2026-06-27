@@ -229,7 +229,7 @@ export class Game {
     if (this.base.garrisonMedicEnabled) {
       this.garrisonUnits.push(new GarrisonUnit(BASE_X, BASE_Y + 70, 'medic', GARRISON_PROFILES.medic, this.base.garrisonHpMult, 1))
     }
-    if (this.base.garrisonTitanEnabled && this.waveManager.waveIndex % 3 === 0) {
+    if (this.base.garrisonTitanEnabled) {
       this.garrisonUnits.push(new GarrisonUnit(BASE_X + 70, BASE_Y - 70, 'titan', GARRISON_PROFILES.titan, this.base.garrisonHpMult, this.base.garrisonDamageMult))
     }
     if (this.garrisonUnits.length > 0) {
