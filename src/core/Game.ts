@@ -1741,6 +1741,25 @@ export class Game {
       ctx.restore()
     }
 
+    // Berserker stack pips — small red dots above player
+    if (p.berserkerEnabled && p.berserkerStacks > 0) {
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      const stacks = p.berserkerStacks
+      const pipW = 5, gap = 3, totalW = stacks * (pipW + gap) - gap
+      for (let i = 0; i < stacks; i++) {
+        const px = -totalW / 2 + i * (pipW + gap) + pipW / 2
+        ctx.beginPath()
+        ctx.arc(px, -22, pipW / 2, 0, Math.PI * 2)
+        ctx.fillStyle = T.blood
+        ctx.shadowColor = T.blood
+        ctx.shadowBlur = 4
+        ctx.fill()
+        ctx.shadowBlur = 0
+      }
+      ctx.restore()
+    }
+
     // Executioner ready aura — gold pulsing ring
     if (p.executionerEnabled && p.executionerReady) {
       const pulseR = 20 + 3 * Math.sin(Date.now() / 120)
