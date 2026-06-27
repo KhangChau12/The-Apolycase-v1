@@ -82,6 +82,11 @@ TutorialOverlay → start() → enterBreak(10s) → exitBreak() → [playing pha
 - **Phantom Round:** 20% chance bắn không tốn đạn
 - Twin Shot: `pendingFollowBullet` — spawn viên 2 sau 0.08s delay, cùng góc
 - **`appliedPlayerSkills: Map<PlayerSkillId, number>`** — track stack count của từng skill đã apply, dùng bởi HUD Upgrade Stats
+- **`isMoving: boolean`** — set mỗi frame trong `move()`; true khi WASD held; dùng bởi MP5 run-and-gun
+- **`arStillTimer: number`** — giây đứng yên liên tục; reset về 0 khi move(); dùng bởi AR focus spread
+- **`dsrComboTarget / dsrComboCount / dsrComboBonus`** — DSR Target Lock state; `onDsrHit(z)` gọi từ Game.ts khi bullet marksmanRifle hit
+- **`noAmmoMsgCooldown: number`** — rate-limit cho "No ammo" toast message (1.5s)
+- **`pendingDodge: boolean`** — set true khi dodge roll thành công trong `takeDamage()`; consumed by Game.ts để show "DODGE!" toast
 - **`onBulletHit(damageDealt)`** — gọi từ Game khi bullet player hit zombie, xử lý lifesteal
 - **`onKill()`** — increment kills, trigger berserker stack; gọi từ `game.onZombieDead()`
 - **`effectiveSpeed`** getter — tính cả Last Stand bonus (+30 khi HP < 25%)
@@ -368,6 +373,7 @@ Web Audio API synthesis (no audio asset files). Initialized after first user int
 - `playWaveClear()` — C4→E4→G4 arpeggio; `playWaveStart()` — sawtooth sweep
 - `playLevelUp()` — C4→G4→C5→E5 fanfare; `playPickup()` — rising chirp
 - `playTowerPlace()` — clunk; `playUIClick()` — sharp tick; `playSkillPick()` — two-tone rising
+- `playPlayerHurt()` — short thud (lowpass noise + sawtooth grunt), called when player takes damage
 - Internal helpers: `noise(duration)`, `bandpass()`, `lowpass()`, `highpass()`, `osc()`
 
 ---
