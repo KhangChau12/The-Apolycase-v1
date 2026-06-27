@@ -436,11 +436,15 @@ export class Game {
     this.bullets.push(...ricochets)
     this.bullets = this.bullets.filter(b => b.alive)
 
+        const baseHpBefore = this.base.hp
     for (const z of this.zombies) {
       z.update(dt, this.base, this.towers, this)
       this.pushOutOfBase(z)
     }
     this.applyZombieSeparation()
+    // Shake camera when base takes significant damage this frame
+    const baseHpDelta = baseHpBefore - this.base.hp
+    if (baseHpDelta > 5) this.shake(Math.min(3, baseHpDelta * 0.06), 0.18)
 
     // bullet â†" zombie collision
     for (const b of this.bullets) {
