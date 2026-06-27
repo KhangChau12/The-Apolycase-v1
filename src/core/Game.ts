@@ -556,7 +556,15 @@ export class Game {
 
     // towers
     for (const t of this.towers) {
+      const wasAlive = t.alive
       t.update(dt, this.zombies, this.base, this.bullets, this.effects)
+      if (wasAlive && !t.alive) {
+        // Tower destroyed: debris burst + shake
+        this.effects.spawnShockwaveDebris(t.x, t.y, '#8B3A2A')
+        this.shake(2, 0.2)
+        this.hud.showMessage('Tower destroyed!', T.blood, 2000)
+        this.audio.playExplosion(0.5)
+      }
     }
     this.towers = this.towers.filter(t => t.alive)
     // workers
