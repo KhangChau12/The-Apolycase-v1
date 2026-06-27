@@ -15,7 +15,9 @@ export class GameOverScreen {
     const kills = p.kills
     const wave = g.waveManager.waveIndex
     const territory = g.territory.level
-    const score = Math.floor(kills * 10 + wave * 100 + p.stats.level * 50)
+    const towersBuilt = g.towers.length
+    const baseSkillsUnlocked = g.base.appliedBaseSkills.size
+    const score = Math.floor(kills * 10 + wave * 100 + p.stats.level * 50 + towersBuilt * 20 + baseSkillsUnlocked * 30)
 
     this.el.innerHTML = `
       <div style="
@@ -64,6 +66,14 @@ export class GameOverScreen {
           <div class="go-stat" style="animation-delay:0.8s;${statRow()}">
             <span style="color:${T.iron};">Territory expansions</span>
             <span style="color:${T.crystalCyan};">${territory}</span>
+          </div>
+          <div class="go-stat" style="animation-delay:1.0s;${statRow()}">
+            <span style="color:${T.iron};">Towers standing</span>
+            <span style="color:${T.amber};">${towersBuilt}</span>
+          </div>
+          <div class="go-stat" style="animation-delay:1.2s;${statRow()}">
+            <span style="color:${T.iron};">Base skills unlocked</span>
+            <span style="color:${T.crystalCyan};">${baseSkillsUnlocked}</span>
           </div>
         </div>
 
