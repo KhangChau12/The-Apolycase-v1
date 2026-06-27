@@ -1,4 +1,4 @@
-export type TowerType = 'barricade' | 'fireTower' | 'electricTower' | 'repairTower' | 'machineGunTower'
+export type TowerType = 'barricade' | 'fireTower' | 'electricTower' | 'repairTower' | 'machineGunTower' | 'freezeTower' | 'poisonTower'
 
 export interface TowerProfile {
   type: TowerType
@@ -13,13 +13,18 @@ export interface TowerProfile {
   burnDps?: number
   burnDuration?: number
   chainCount?: number
+  slowAmount?: number
+  pulseCooldown?: number
+  poisonDps?: number
+  poisonDuration?: number
+  poisonMaxStacks?: number
 }
 
 export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
   barricade: {
     type: 'barricade',
     label: 'Barricade',
-    costIron: 3,
+    costIron: 4,
     costCore: 0,
     hp: 400,
     range: 0,
@@ -44,10 +49,10 @@ export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
     type: 'electricTower',
     label: 'Electric Tower',
     costIron: 20,
-    costCore: 12,
+    costCore: 10,
     hp: 140,
     range: 180,
-    damage: 12,
+    damage: 18,
     fireRate: 1.0,
     chainCount: 4,
     description: 'Chains lightning to multiple enemies. More targets = more damage.',
@@ -57,7 +62,7 @@ export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
     label: 'Repair Tower',
     costIron: 15,
     costCore: 10,
-    hp: 100,
+    hp: 130,
     range: 150,
     damage: 0,
     fireRate: 0,
@@ -73,5 +78,32 @@ export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
     damage: 6,
     fireRate: 12,
     description: 'Extreme fire rate, single target. High sustained DPS.',
+  },
+  freezeTower: {
+    type: 'freezeTower',
+    label: 'Cryo Emitter',
+    costIron: 18,
+    costCore: 14,
+    hp: 120,
+    range: 170,
+    damage: 0,
+    fireRate: 0,
+    slowAmount: 0.35,
+    pulseCooldown: 2.5,
+    description: 'Emits a cryo pulse every 2.5s that slows all enemies in range. Stacks with base aura.',
+  },
+  poisonTower: {
+    type: 'poisonTower',
+    label: 'Acid Sprayer',
+    costIron: 22,
+    costCore: 10,
+    hp: 150,
+    range: 140,
+    damage: 4,
+    fireRate: 2.0,
+    poisonDps: 8,
+    poisonDuration: 3.5,
+    poisonMaxStacks: 3,
+    description: 'Fires acid blobs that poison enemies for 8 DPS over 3.5s (stacks up to 3×).',
   },
 }

@@ -21,6 +21,7 @@ import { BuildContextMenu } from '../ui/BuildContextMenu'
 import { TowerInspectMenu } from '../ui/TowerInspectMenu'
 import { BaseSkillTreeModal } from '../ui/BaseSkillTreeModal'
 import { EffectsManager } from '../effects/EffectsManager'
+import { AudioManager } from './AudioManager'
 import { T } from '../ui/theme'
 import { DropItem } from '../entities/DropItem'
 import { Bullet } from '../entities/Bullet'
@@ -41,9 +42,11 @@ const BULLET_STREAK: Record<string, { len: number; w: number; color: string; glo
   pistol:       { len: 14, w: 1.5, color: 'rgba(255,225,140,1.0)',  glow: 'rgba(255,200,100,0.55)' },
   shotgun:      { len: 10, w: 2.0, color: 'rgba(255,185,70,1.0)',   glow: 'rgba(255,160,50,0.55)'  },
   assaultRifle: { len: 20, w: 1.5, color: 'rgba(255,235,150,1.0)',  glow: 'rgba(255,215,120,0.55)' },
-  soldierDrone: { len: 10, w: 1.2, color: 'rgba(136,220,255,1.0)',  glow: 'rgba(68,136,255,0.65)'  },
-  smg:          { len: 12, w: 1.2, color: 'rgba(255,215,120,1.0)',  glow: 'rgba(255,190,90,0.50)'  },
-  sniperRifle:  { len: 38, w: 1.0, color: 'rgba(255,250,210,1.0)',  glow: 'rgba(255,240,170,0.60)' },
+  soldierDrone:    { len: 10, w: 1.2, color: 'rgba(136,220,255,1.0)',  glow: 'rgba(68,136,255,0.65)'  },
+  smg:             { len: 12, w: 1.2, color: 'rgba(255,215,120,1.0)',  glow: 'rgba(255,190,90,0.50)'  },
+  sniperRifle:     { len: 38, w: 1.0, color: 'rgba(255,250,210,1.0)',  glow: 'rgba(255,240,170,0.60)' },
+  grenadeLauncher: { len: 8,  w: 3.0, color: 'rgba(60,200,60,1.0)',   glow: 'rgba(80,255,80,0.60)'   },
+  marksmanRifle:   { len: 28, w: 1.2, color: 'rgba(240,255,200,1.0)', glow: 'rgba(200,255,150,0.55)' },
 }
 const DEFAULT_STREAK = { len: 12, w: 1.5, color: 'rgba(255,185,70,1.0)', glow: 'rgba(255,160,50,0.55)' }
 
@@ -92,6 +95,7 @@ export class Game {
   private shakeDuration = 0
   private shakeMaxDuration = 0
   private shakeIntensity = 0
+  readonly audio = new AudioManager()
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!
@@ -142,6 +146,9 @@ export class Game {
   }
 
   start(): void {
+    this.audio.init()
+    const savedSfx = localStorage.getItem('sfx_enabled')
+    if (savedSfx === '0') this.audio.setEnabled(false)
     this.running = true
     requestAnimationFrame(t => this.loop(t))
   }
@@ -152,6 +159,15 @@ export class Game {
 
   spawnZombieSlash(x: number, y: number, fromAngle: number, archetype: import('../entities/Zombie').ZombieArchetype): void {
     this.effects.spawnZombieSlash(x, y, fromAngle, archetype)
+  }
+
+  spawnAcidBlob(x: number, y: number, angle: number, damage: number): void {
+    const blob = new Bullet(x, y, angle, 220, damage, 'tower')
+    blob.isBurning = true
+    blob.burnDps = 5
+    blob.hitsBase = true
+    blob.radius = 7
+    this.bullets.push(blob)
   }
 
   shake(intensity: number, duration: number): void {
@@ -170,7 +186,12 @@ export class Game {
     // Announce the wave (HUD may not exist yet on very first call from constructor)
     if (this.hud) {
       this.hud.triggerWaveAnnounce(this.waveManager.waveIndex, this.waveManager.isBossWave)
-      if (this.waveManager.isBossWave) this.shake(6, 0.5)
+      if (this.waveManager.isBossWave) {
+        this.shake(6, 0.5)
+        this.audio.playBossRoar()
+      } else {
+        this.audio.playWaveStart()
+      }
     }
   }
 
@@ -252,6 +273,7 @@ export class Game {
       for (let wi = 0; wi < 3; wi++) this.workers.push(new WorkerEntity(tower))
     }
     this.shake(2, 0.15)
+    this.audio.playTowerPlace()
     this.hud.showMessage(`${profile.label} placed`, '#8f8')
   }
 
@@ -292,7 +314,7 @@ export class Game {
         this.buildMode = false
         this.pendingTowerType = null
         this.hud.showMessage(
-          this.barrierMode ? 'Barrier mode ON Â· Click to place (â¬¡3) Â· B or Esc to cancel' : 'Barrier mode OFF',
+          this.barrierMode ? 'Barrier mode ON - Click to place (iron x3) - B or Esc to cancel' : 'Barrier mode OFF',
           this.barrierMode ? T.orange : T.iron,
         )
       }
@@ -309,6 +331,12 @@ export class Game {
       }
       if (e.code === 'KeyU') {
         this.toggleUpgradePanel()
+      }
+      if (e.code === 'KeyM') {
+        const next = !this.audio.isEnabled
+        this.audio.setEnabled(next)
+        localStorage.setItem('sfx_enabled', next ? '1' : '0')
+        this.hud.showMessage(next ? 'Sound ON' : 'Sound OFF', next ? T.amber : T.iron, 1200)
       }
     })
   }
@@ -379,7 +407,25 @@ export class Game {
     for (const b of this.bullets) b.update(dt)
     for (const b of this.bullets) {
       if (b.alive && b.isFireball) this.effects.spawnFireTrail(b.x, b.y, b.angle)
+      // Acid blob: hits base directly
+      if (b.alive && b.hitsBase && dist(b.x, b.y, BASE_X, BASE_Y) < 50) {
+        this.base.takeDamage(b.damage)
+        b.alive = false
+      }
     }
+    // Ricochet: expired bullets with canRicochet spawn a bounce bullet
+    const ricochets: Bullet[] = []
+    for (const b of this.bullets) {
+      if (!b.alive && b.canRicochet && !b.hasRichocheted && b.owner === 'player') {
+        const rb = new Bullet(b.x, b.y, Math.random() * Math.PI * 2, Math.sqrt(b.vx * b.vx + b.vy * b.vy) * 0.7, Math.floor(b.damage * 0.6), 'player')
+        rb.hasRichocheted = true
+        rb.canRicochet = false
+        rb.weaponClass = b.weaponClass
+        rb.isPenetrating = b.isPenetrating
+        ricochets.push(rb)
+      }
+    }
+    this.bullets.push(...ricochets)
     this.bullets = this.bullets.filter(b => b.alive)
 
     for (const z of this.zombies) {
@@ -388,7 +434,7 @@ export class Game {
     }
     this.applyZombieSeparation()
 
-    // bullet â†” zombie collision
+    // bullet â†" zombie collision
     for (const b of this.bullets) {
       if (!b.alive) continue
       for (const z of this.zombies) {
@@ -407,11 +453,27 @@ export class Game {
           z.takeDamage(dmg)
           // Machine gun slow
           if (b.machineGunSlow) z.slowFactor = Math.max(z.slowFactor, 0.1)
-          // Lifesteal: heal player based on damage dealt
-          if (b.owner === 'player' && b.lifesteal > 0) {
-            this.player.onBulletHit(dmg)
+          // Lifesteal + kinetic strike: pass zombie ref for streak tracking
+          if (b.owner === 'player') {
+            z.aggroHit(4)
+            this.player.onBulletHit(dmg, z)
+            if (this.player._kineticStunPending) {
+              this.player._kineticStunPending = false
+              z.stun(0.6)
+            }
+            // Acid Coating: apply burn DOT on hit
+            if (this.player.acidCoatingEnabled) {
+              z.burnTimer = Math.max(z.burnTimer, 2)
+              z.burnDps = Math.max(z.burnDps, this.player.acidCoatingStacks * 3)
+            }
           }
-          if (b.isBurning) {
+          // Poison tower bullet
+          if (b.isPoisoned) {
+            z.poisonStacks = Math.min(z.poisonStacks + 1, 3)
+            z.poisonDps = b.poisonDps * z.poisonStacks
+            z.poisonTimer = b.poisonDuration
+          }
+          if (b.isBurning && !b.isPoisoned) {
             z.burnTimer = b.burnDps > 0 ? 3 : 0
             z.burnDps = b.burnDps
           }
@@ -426,8 +488,14 @@ export class Game {
               }
             }
             this.effects.spawnRadialBurst(b.x, b.y)
+            this.audio.playExplosion()
           }
+          this.audio.playZombieHit(z.archetype)
           this.effects.spawnHitSpark(z.x, z.y, hitAngle)
+          // Executioner: check if zombie will die and was below 30% HP
+          if (!z.alive && b.owner === 'player' && z.hp + dmg < z.maxHp * 0.30) {
+            this.player.triggerExecutioner()
+          }
           if (!z.alive) this.onZombieDead(z, hitAngle)
           // Fireball and penetrating bullets pass through; others die on first hit
           if (!b.isFireball && !b.isPenetrating) {
@@ -490,7 +558,7 @@ export class Game {
         }
       }
 
-      // Legacy titan splash compat â€” cleared by new system, nullify if somehow still set
+      // Legacy titan splash compat â€" cleared by new system, nullify if somehow still set
       u.titanSplashPending = null
 
       // Medic heal particles
@@ -603,10 +671,11 @@ export class Game {
     if (this.zombies.filter(z => z.alive).length === 0 && this.waveManager.phase !== 'break') {
       this.zombies = []
       this.hud.triggerWaveClear(this.waveManager.waveIndex)
+      this.audio.playWaveClear()
       if (this.waveManager.isBossWave) {
         this.resources.add({ crystal: 1 })
         this.territory.expand()
-        this.hud.showMessage(`Boss defeated! +1 Crystal âœ¦ Â· Territory expanded to ${this.territory.radius}px`, T.gold, 3500)
+        this.hud.showMessage(`Boss defeated! +1 Crystal -- Territory expanded to ${this.territory.radius}px`, T.gold, 3500)
         this.effects.triggerExplosionFlash()
       }
       this.enterBreak()
@@ -622,10 +691,17 @@ export class Game {
 
   private onZombieDead(z: Zombie, killAngle = 0): void {
     this.player.onKill()
-    this.drops.push(new DropItem(z.x, z.y, z.getDrops()))
+    const rawDrops = z.getDrops()
+    const dropMult = 1 + this.player.stats.dropBonus + this.base.resourceDropBonus
+    rawDrops.iron = Math.round(rawDrops.iron * dropMult)
+    rawDrops.coins = Math.round(rawDrops.coins * dropMult)
+    rawDrops.energyCore = Math.round(rawDrops.energyCore * dropMult)
+    this.drops.push(new DropItem(z.x, z.y, rawDrops))
     this.effects.spawnBloodSplatter(z.x, z.y, killAngle, z.archetype)
+    this.audio.playZombieDead(z.archetype)
     this.player.addXp(z.xpReward, () => {
       this.hud.triggerLevelUp()
+      this.audio.playLevelUp()
       this.showPlayerLevelUpModal()
     })
   }
@@ -646,7 +722,7 @@ export class Game {
 
   private tryPickupDrops(): void {
     const pr = this.player.stats.pickupRange
-    // Attract range is 3Ă— pickup range â€” items glide toward player when within it
+    // Attract range is 3x pickup range -- items glide toward player when within it
     const attractRange = pr * 3
     const px = this.player.x
     const py = this.player.y
@@ -663,15 +739,16 @@ export class Game {
           this.hud.showMessage(`+${d.ammo} ammo`, '#ee8', 800)
         }
         d.picked = true
+        this.audio.playPickup()
         const parts: string[] = []
-        if (d.iron > 0)   parts.push(`+${d.iron}â¬¡`)
-        if (d.coins > 0)  parts.push(`+${d.coins}Â¢`)
+        if (d.iron > 0)   parts.push(`+${d.iron} iron`)
+        if (d.coins > 0)  parts.push(`+${d.coins} coins`)
         if (parts.length) this.hud.showMessage(parts.join('  '), '#ccc', 800)
       }
     }
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Render â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private render(): void {
     const ctx = this.ctx
@@ -713,7 +790,7 @@ export class Game {
     this.renderBuildHint(ctx)
   }
 
-  // â”€â”€ World â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ World â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderWorld(ctx: CanvasRenderingContext2D): void {
     // World fill
@@ -734,7 +811,7 @@ export class Game {
     ctx.lineWidth = 5
     ctx.strokeRect(0, 0, WORLD_W, WORLD_H)
 
-    // Territory â€” hexagon (flat-top, aligned with base hull)
+    // Territory â€" hexagon (flat-top, aligned with base hull)
     ctx.save()
     const tr = this.territory.radius
     ctx.beginPath()
@@ -766,7 +843,7 @@ export class Game {
     const pulse2 = Math.sin(t * 3.6 + 1)   // faster inner flicker
     const rot = b.rotationAngle
 
-    // â”€â”€ 0. Aura field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 0. Aura field â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     const auraR = b.auraRadius
     ctx.save()
     // Ambient radial gradient fill
@@ -789,7 +866,7 @@ export class Game {
     ctx.save()
     ctx.translate(b.x, b.y)
 
-    // â”€â”€ 1. Defense perimeter ring â€” slow counter-rotation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 1. Defense perimeter ring â€" slow counter-rotation â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     // 12 evenly-spaced short brackets around r=62
     const defR = 62
     ctx.strokeStyle = `rgba(${accentRgb},0.25)`
@@ -804,7 +881,7 @@ export class Game {
       ctx.lineTo(Math.cos(a) * (defR + 2), Math.sin(a) * (defR + 2))
       ctx.lineTo(Math.cos(oa) * (defR - 5), Math.sin(oa) * (defR - 5))
       ctx.stroke()
-      // 4 of 12 are "lit" â€” brighter node dots
+      // 4 of 12 are "lit" â€" brighter node dots
       if (i % 3 === 0) {
         ctx.fillStyle = `rgba(${accentRgb},0.55)`
         ctx.beginPath()
@@ -813,7 +890,7 @@ export class Game {
       }
     }
 
-    // â”€â”€ 2. Outer hull â€” hexagon (r=50), aligned with territory â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 2. Outer hull â€" hexagon (r=50), aligned with territory â"€â"€â"€â"€â"€â"€
     const hullR = 50
     ctx.beginPath()
     for (let i = 0; i < 6; i++) {
@@ -833,7 +910,7 @@ export class Game {
     ctx.lineWidth = 3.5
     ctx.stroke()
 
-    // â”€â”€ 3. Energy conduit spokes â€” 6 lines from core to hull â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 3. Energy conduit spokes â€" 6 lines from core to hull â"€â"€â"€â"€â"€â"€â"€â"€
     ctx.strokeStyle = `rgba(${accentRgb},${0.18 + 0.08 * pulse})`
     ctx.lineWidth = 1
     for (let i = 0; i < 6; i++) {
@@ -844,7 +921,7 @@ export class Game {
       ctx.stroke()
     }
 
-    // â”€â”€ 4. Core chamber â€” hexagon (r=22) with radial gradient â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 4. Core chamber â€" hexagon (r=22) with radial gradient â"€â"€â"€â"€â"€â"€â"€
     ctx.beginPath()
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + Math.PI / 6 + rot * 0.9  // slow rotation
@@ -865,7 +942,7 @@ export class Game {
     ctx.stroke()
     ctx.shadowBlur = 0
 
-    // â”€â”€ 7. Reactor core â€” small circle with strong glow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 7. Reactor core â€" small circle with strong glow â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     const reactorGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 12)
     reactorGrad.addColorStop(0,   `rgba(${accentRgb},${0.9 + 0.08 * pulse2})`)
     reactorGrad.addColorStop(0.4, `rgba(${accentRgb},0.45)`)
@@ -886,7 +963,7 @@ export class Game {
     ctx.fill()
     ctx.globalAlpha = 1
 
-    // â”€â”€ 8. Shield dome (if active) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 8. Shield dome (if active) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if (b.shieldHp > 0 && b.shieldPulseMaxHp > 0) {
       const shieldPct = b.shieldHp / b.shieldPulseMaxHp
       const shieldPulse = 0.5 + 0.3 * Math.abs(pulse)
@@ -905,7 +982,7 @@ export class Game {
       ctx.shadowBlur = 0
     }
 
-    // â”€â”€ 9. HP bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 9. HP bar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     const barW = 84, barH = 6, barX = -barW / 2, barY = -76
     ctx.fillStyle = 'rgba(10,8,4,0.8)'
     ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2)
@@ -916,7 +993,7 @@ export class Game {
     ctx.fillRect(barX, barY, barW * pct, barH)
     ctx.shadowBlur = 0
 
-    // â”€â”€ 10. HP label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ 10. HP label â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     ctx.fillStyle = `rgba(${accentRgb},0.55)`
     ctx.font = `8px ${T.font}`
     ctx.textAlign = 'center'
@@ -925,9 +1002,9 @@ export class Game {
     ctx.restore()
   }
 
-  // â”€â”€ Tower aura glow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Tower aura glow â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
-  // â”€â”€ Towers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Towers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderTowers(ctx: CanvasRenderingContext2D): void {
     const styleMap: Record<string, { fill: string; stroke: string }> = {
@@ -936,6 +1013,8 @@ export class Game {
       electricTower:  { fill: '#0a0e1a', stroke: '#88eeff' },
       repairTower:    { fill: '#0a1810', stroke: '#4CAF50' },
       machineGunTower:{ fill: '#1a100a', stroke: '#E8A030' },
+      freezeTower:    { fill: '#080e1a', stroke: '#88EEFF' },
+      poisonTower:    { fill: '#0a140a', stroke: '#88CC44' },
     }
     const rangeRingColor: Record<string, string> = {
       barricade:      'rgba(139,58,42,0.12)',
@@ -943,6 +1022,8 @@ export class Game {
       electricTower:  'rgba(136,238,255,0.12)',
       repairTower:    'rgba(76,175,80,0.12)',
       machineGunTower:'rgba(232,160,48,0.12)',
+      freezeTower:    'rgba(136,238,255,0.10)',
+      poisonTower:    'rgba(136,204,68,0.10)',
     }
 
     const TOWER_SVG_ICON: Record<string, string> = {
@@ -951,12 +1032,14 @@ export class Game {
       electricTower:   'zap',
       repairTower:     'wrench',
       machineGunTower: 'crosshair',
+      freezeTower:     'zap',
+      poisonTower:     'flame',
     }
 
     const drawIcon = (ctx: CanvasRenderingContext2D, type: string, stroke: string) => {
       const iconName = TOWER_SVG_ICON[type]
       if (iconName) {
-        // Use pre-rendered SVG image â€” drawn at 18Ă—18 centered on tower
+        // Use pre-rendered SVG image â€" drawn at 18Ă—18 centered on tower
         ctx.save()
         ctx.globalAlpha = 0.92
         drawCanvasIcon(ctx, iconName, stroke, 0, 0, 18)
@@ -984,7 +1067,7 @@ export class Game {
       ctx.save()
       ctx.translate(t.x, t.y)
 
-      // Spawn scale animation: 1.4 â†’ 1.0 over 150ms, cubic ease-out
+      // Spawn scale animation: 1.4 â†' 1.0 over 150ms, cubic ease-out
       const SPAWN_MS = 150
       const elapsed = t.spawnTime > 0 ? Date.now() - t.spawnTime : SPAWN_MS
       const spawnT = Math.min(elapsed / SPAWN_MS, 1)
@@ -1033,6 +1116,23 @@ export class Game {
       }
 
       ctx.restore()
+
+      // Cryo pulse ring expanding from freeze tower
+      if (t.profile.type === 'freezeTower' && t.pulseRingTimer > 0 && t.pulseRingMax > 0) {
+        const progress = 1 - t.pulseRingTimer / t.pulseRingMax
+        const ringRadius = t.profile.range * (0.2 + progress * 0.9)
+        const alpha = (1 - progress) * 0.7
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(t.x, t.y, ringRadius, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(136,238,255,${alpha})`
+        ctx.lineWidth = 2.5
+        ctx.shadowColor = '#88EEFF'
+        ctx.shadowBlur = 8
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
     }
   }
 
@@ -1113,7 +1213,7 @@ export class Game {
   }
 
   private _drawSoldierShape(ctx: CanvasRenderingContext2D, r: number, fill: string, glow: string, flashing: boolean): void {
-    // Main body â€” sleek triangle (pointed up)
+    // Main body â€" sleek triangle (pointed up)
     ctx.fillStyle = fill
     ctx.strokeStyle = glow
     ctx.lineWidth = 1.8
@@ -1303,7 +1403,7 @@ export class Game {
   }
 
   private pushOutOfBase(obj: { x: number; y: number; radius?: number }): void {
-    const solidR = 52  // matches rendered hull r=50 + small margin
+    const solidR = 36  // inner core radius; outer ring is visual only, not a physical wall
     const objR = obj.radius ?? 8
     const minDist = solidR + objR
     const dx = obj.x - BASE_X
@@ -1349,7 +1449,7 @@ export class Game {
     return best
   }
 
-  // â”€â”€ Zombies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Zombies â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderZombies(ctx: CanvasRenderingContext2D): void {
     for (const z of this.zombies) {
@@ -1381,7 +1481,7 @@ export class Game {
 
       ctx.rotate(-(z.angle + Math.PI / 2))
 
-      // Stun stars â€” 3 small white circles orbiting the zombie
+      // Stun stars â€" 3 small white circles orbiting the zombie
       if (z.stunTimer > 0) {
         const starAlpha = z.stunTimer < 0.3 ? z.stunTimer / 0.3 : 1.0
         const rotOff = Date.now() / 400
@@ -1434,6 +1534,23 @@ export class Game {
         ctx.shadowBlur = 0
       }
 
+      // Poison drip dots — green circles at base of zombie when poisoned
+      if (z.poisonStacks > 0) {
+        const dotY = z.radius + 4
+        ctx.globalAlpha = 0.85
+        ctx.shadowColor = '#88CC44'
+        ctx.shadowBlur = 5
+        ctx.fillStyle = '#44AA22'
+        for (let i = 0; i < z.poisonStacks; i++) {
+          const dx = (i - (z.poisonStacks - 1) / 2) * 6
+          ctx.beginPath()
+          ctx.arc(dx, dotY, 2.5, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+      }
+
       // BOSS label badge
       if (z.archetype === 'boss') {
         const by = -z.radius - 22
@@ -1452,7 +1569,7 @@ export class Game {
     }
   }
 
-  // â”€â”€ Player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Player â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderPlayer(ctx: CanvasRenderingContext2D): void {
     const p = this.player
@@ -1468,11 +1585,13 @@ export class Game {
     ctx.stroke()
     ctx.save()
     switch (this.player.currentWeapon.class) {
-      case 'pistol':       this.drawWeaponPistol(ctx); break
-      case 'shotgun':      this.drawWeaponShotgun(ctx); break
-      case 'assaultRifle': this.drawWeaponAR(ctx); break
-      case 'smg':          this.drawWeaponSMG(ctx); break
-      case 'sniperRifle':  this.drawWeaponSniper(ctx); break
+      case 'pistol':          this.drawWeaponPistol(ctx); break
+      case 'shotgun':         this.drawWeaponShotgun(ctx); break
+      case 'assaultRifle':    this.drawWeaponAR(ctx); break
+      case 'smg':             this.drawWeaponSMG(ctx); break
+      case 'sniperRifle':     this.drawWeaponSniper(ctx); break
+      case 'grenadeLauncher': this.drawWeaponGL(ctx); break
+      case 'marksmanRifle':   this.drawWeaponDMR(ctx); break
     }
     ctx.restore()
     ctx.restore()
@@ -1487,9 +1606,27 @@ export class Game {
       ctx.stroke()
       ctx.restore()
     }
+
+    // Executioner ready aura — gold pulsing ring
+    if (p.executionerEnabled && p.executionerReady) {
+      const pulseR = 20 + 3 * Math.sin(Date.now() / 120)
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.beginPath()
+      ctx.arc(0, 0, pulseR, 0, Math.PI * 2)
+      ctx.strokeStyle = T.gold
+      ctx.lineWidth = 2.5
+      ctx.shadowColor = T.gold
+      ctx.shadowBlur = 14
+      ctx.globalAlpha = 0.85
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+      ctx.restore()
+    }
   }
 
-  // â”€â”€ Bullets / Drops / Particles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Bullets / Drops / Particles â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderBullets(ctx: CanvasRenderingContext2D): void {
     for (const b of this.bullets) {
@@ -1499,7 +1636,7 @@ export class Game {
         const wobble = Math.sin(t / 80) * 0.18
         const backAngle = b.angle + Math.PI
 
-        // Fiery tail â€” elongated teardrops behind the ball
+        // Fiery tail â€" elongated teardrops behind the ball
         for (let ti = 1; ti <= 4; ti++) {
           const dist2 = ti * (b.radius * 0.85)
           const tx = b.x + Math.cos(backAngle) * dist2
@@ -1555,7 +1692,7 @@ export class Game {
         ctx.restore()
         continue
       }
-      // Light streak â€” two-pass (glow + core)
+      // Light streak â€" two-pass (glow + core)
       const sk = (b.weaponClass && BULLET_STREAK[b.weaponClass]) ? BULLET_STREAK[b.weaponClass] : DEFAULT_STREAK
       const tailX = b.x - Math.cos(b.angle) * sk.len
       const tailY = b.y - Math.sin(b.angle) * sk.len
@@ -1598,7 +1735,7 @@ export class Game {
     }
   }
 
-  // â”€â”€ Build preview ghost when buildMode or barrierMode active â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Build preview ghost when buildMode or barrierMode active â"€â"€â"€â"€â"€â"€â"€
 
   private renderBuildPreview(ctx: CanvasRenderingContext2D): void {
     const isBarrier = this.barrierMode
@@ -1630,7 +1767,7 @@ export class Game {
       ctx.fillStyle = T.amber
       ctx.font = `bold 9px ${T.font}`
       ctx.textAlign = 'center'
-      ctx.fillText('â¬¡3', 0, 28)
+      ctx.fillText('x3', 0, 28)
     } else {
       ctx.fillStyle = inTerritory ? '#2a4a2a' : '#4a1a1a'
       ctx.strokeStyle = inTerritory ? '#4f8' : '#f44'
@@ -1643,16 +1780,16 @@ export class Game {
     ctx.restore()
   }
 
-  // â”€â”€ Build hint bar (shown mid-game) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Build hint bar (shown mid-game) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderBuildHint(ctx: CanvasRenderingContext2D): void {
     if (this.phase !== 'playing') return
     const active = this.buildMode || this.barrierMode
     const text = this.barrierMode
-      ? 'Barrier mode â€” Click to place (â¬¡3) Â· B or Esc to cancel'
+      ? 'Barrier mode -- Click to place (x3 iron) - B or Esc to cancel'
       : this.buildMode
-        ? `Placing ${this.pendingTowerType ?? '?'} â€” Left Click to place Â· Esc to cancel`
-        : 'Right Click â†’ Build Tower  Â·  B â†’ Barricade'
+        ? `Placing ${this.pendingTowerType ?? '?'} -- Left Click to place - Esc to cancel`
+        : 'Right Click -> Build Tower   |   B -> Barricade'
     ctx.save()
     ctx.fillStyle = 'rgba(20,12,8,0.85)'
     ctx.fillRect(0, this.screenH - 92, this.screenW, 2)
@@ -1667,7 +1804,7 @@ export class Game {
     ctx.restore()
   }
 
-  // â”€â”€ Minimap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Minimap â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   private renderMinimap(ctx: CanvasRenderingContext2D): void {
     const mw = 160, mh = 160
@@ -1720,7 +1857,7 @@ export class Game {
     ctx.restore()
   }
 
-  // â”€â”€ Weapon shape renderers (ctx already translated+rotated to player) â”€â”€
+  // â"€â"€ Weapon shape renderers (ctx already translated+rotated to player) â"€â"€
 
   private drawWeaponPistol(ctx: CanvasRenderingContext2D): void {
     // Slide / body
@@ -1794,5 +1931,53 @@ export class Game {
     // Stock
     ctx.fillStyle = '#5a4a2a'
     ctx.fillRect(5, -1.5, 5, 3)
+  }
+
+  private drawWeaponGL(ctx: CanvasRenderingContext2D): void {
+    // Barrel tube — wide and short
+    ctx.fillStyle = '#3a4a2a'
+    ctx.beginPath()
+    ctx.ellipse(18, 0, 14, 5, 0, 0, Math.PI * 2)
+    ctx.fill()
+    // Muzzle ring
+    ctx.strokeStyle = '#5a6a3a'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(32, 0, 5, -Math.PI / 2, Math.PI / 2)
+    ctx.stroke()
+    // Grip / receiver
+    ctx.fillStyle = '#2a3a1a'
+    ctx.fillRect(5, -3, 10, 6)
+    // Trigger guard
+    ctx.strokeStyle = '#4a5a2a'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(8, 4, 4, 0, Math.PI)
+    ctx.stroke()
+  }
+
+  private drawWeaponDMR(ctx: CanvasRenderingContext2D): void {
+    // Long precision barrel
+    ctx.fillStyle = '#6a6a5a'
+    ctx.fillRect(8, -1.5, 26, 3)
+    // Receiver
+    ctx.fillStyle = '#3a3a2a'
+    ctx.fillRect(8, -3.5, 16, 7)
+    // Scope rail + scope
+    ctx.fillStyle = '#111'
+    ctx.fillRect(10, -8, 12, 3.5)
+    ctx.fillStyle = '#3a6a8a'
+    ctx.beginPath()
+    ctx.arc(10, -6.5, 2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(22, -6.5, 2, 0, Math.PI * 2)
+    ctx.fill()
+    // Mag
+    ctx.fillStyle = '#4a4a3a'
+    ctx.fillRect(13, 3.5, 5, 6)
+    // Stock
+    ctx.fillStyle = '#5a4a2a'
+    ctx.fillRect(4, -2, 5, 4)
   }
 }

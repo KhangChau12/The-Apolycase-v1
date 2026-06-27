@@ -61,9 +61,10 @@ TutorialOverlay → start() → enterBreak(10s) → exitBreak() → [playing pha
 - **`spawnGarrison()`** — gọi mỗi exitBreak() nếu `base.garrisonEnabled`; tạo soldiers + optional heavy/medic/titan
 - **`garrisonUnits: GarrisonUnit[]`** — cleared và re-spawned mỗi wave start
 - **Screen shake:** `shake(intensity, duration)` — chỉ override nếu intensity mới >= hiện tại; decay exponential `intensity × (remaining/total)^0.4`; `shakeDuration` được giảm cả trong `update()` lẫn `updateBreak()` để tránh freeze vô hạn
-- **Weapon shape renderers:** `drawWeaponPistol/Shotgun/AR/SMG/Sniper(ctx)` — private methods, ctx đã được translate+rotate về player khi gọi
+- **Weapon shape renderers:** `drawWeaponPistol/Shotgun/AR/SMG/Sniper/GL/DMR(ctx)` — private methods, ctx đã được translate+rotate về player khi gọi
 - **`onZombieDead(z, killAngle?)`** — gọi `player.onKill()`, spawn drops, add XP; đây là điểm duy nhất đếm kill
-- **Bullet collision** — áp dụng `deathMark` (×2 dmg nếu zombie < 20% HP) và `lifesteal` (heal player) tại đây
+- **Bullet collision** — áp dụng `deathMark` (×2 dmg nếu zombie < 20% HP) và `lifesteal` (heal player) tại đây; khi `b.owner === 'player'` gọi `z.aggroHit(4)` để zombie chase player
+- **`pushOutOfBase(obj)`** — `solidR = 36` (inner core radius); outer ring r=50 là visual only, không phải physical wall. Zombies được push ra ngoài 36+radius, đủ gần để attack base (attackRange = radius+40)
 
 ### `Player` (`src/entities/Player.ts`)
 - **Weapon inventory:** `weaponSlots: WeaponSlot[]` — mỗi slot có `{ profile, ammoInMag, reserveAmmo }`
@@ -73,7 +74,9 @@ TutorialOverlay → start() → enterBreak(10s) → exitBreak() → [playing pha
 - **`ownedWeapons`** getter — trả về `WeaponSlot[]`
 - **`activeWeaponIndex`** getter
 - Phím `Digit1`–`Digit9` switch weapon trong `updateWeaponSwitch()`
-- **Skill flags:** `bulletCount`, `bulletPenetrating`, `bulletExplosion`, `fireRateMultiplier`, `lastStandEnabled`, `berserkerEnabled`, `overchargeEnabled`, `phantomRoundEnabled`, `deathMarkEnabled`
+- **Skill flags:** `bulletCount`, `bulletPenetrating`, `bulletExplosion`, `fireRateMultiplier`, `lastStandEnabled`, `berserkerEnabled`, `overchargeEnabled`, `phantomRoundEnabled`, `deathMarkEnabled`, `acidCoatingEnabled`, `kineticStrikeEnabled`, `ricochetEnabled`, `focusedFireEnabled`, `executionerEnabled`
+- **v1.7 skill runtime state:** `acidCoatingStacks`, `kineticHitStreak`, `kineticLastTarget`, `focusedFireStacks`, `focusedFireMaxStacks`, `focusedLastAngle`, `executionerReady`, `executionerTimer`
+- **`_kineticStunPending: boolean`** — consumed by Game.ts each frame to apply stun to `kineticLastTarget`
 - **Berserker runtime state:** `berserkerStacks`, `berserkerTimer` — reset về 0 sau 3s không kill
 - **Overcharge:** `overchargeReady = true` sau mỗi lần reload xong, reset sau phát bắn đầu tiên
 - **Phantom Round:** 20% chance bắn không tốn đạn
@@ -88,8 +91,8 @@ TutorialOverlay → start() → enterBreak(10s) → exitBreak() → [playing pha
 ### `PlayerStats` interface
 ```typescript
 maxHp, hp, armor, speed, damage, critChance, pickupRange, level, xp, xpToNext
-lifesteal: number       // fraction of damage dealt restored as HP (0.0–0.12)
-dodgeChance: number     // chance to fully negate an incoming hit (0.0–0.4)
+lifesteal: number       // fraction of damage dealt restored as HP (0.0–0.09)
+dodgeChance: number     // chance to fully negate an incoming hit (0.0–0.32)
 reloadSpeedMult: number // multiplier on reload time (default 1.0, >1 = faster)
 xpMult: number          // multiplier on XP gained (default 1.0)
 dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
@@ -99,8 +102,10 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - `profile: TowerProfile` — tham chiếu đến TOWER_PROFILES
 - `level: 1|2|3`, `maxHp = profile.hp * level`
 - `upgrade()` → boolean — max level 3
-- Types: `barricade | fireTower | electricTower | repairTower | machineGunTower`
+- Types: `barricade | fireTower | electricTower | repairTower | machineGunTower | freezeTower | poisonTower`
 - repairTower: không bắn — handled bởi WorkerEntity
+- freezeTower: pulse AoE slow mỗi `pulseCooldown` giây; `pulseRingTimer/pulseRingMax` drive cryo ring animation
+- poisonTower: fires Bullet với `isPoisoned=true`; collision handling in Game.ts applies `poisonStacks` to Zombie
 - `spawnTime: number` — timestamp ms khi đặt (set bởi `game.placeTower()`), dùng cho spawn scale animation
 - **`auraDamageBonus: number`** — fraction bonus damage từ HomeBase aura (0.0–0.25); set mỗi frame bởi `base.applyAura()`
 - **`auraRangeBonus: number`** — fraction bonus range từ HomeBase aura; reset về 0 nếu ra ngoài aura
@@ -116,10 +121,10 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - Màu bạc (#C0C0C0) normal, đỏ diamond (#CC3300) khi attack drone
 
 ### `Zombie` (`src/entities/Zombie.ts`)
-- Archetypes: `regular | fast | tank | armored | boss`
+- Archetypes: `regular | fast | tank | armored | boss | healer | spitter`
 - **`tier: number`** — chỉ áp dụng cho zombie thường; boss luôn tier 0 (visual tier tính riêng khi render)
 - Armored: base 50% damage reduction, có thể tăng theo tier qua `damageReduction` (cap 85%)
-- Boss: 2000 HP, drops Crystal
+- Boss: 1800 base HP (scales with waveMult), drops Crystal
 - **Tier stat scaling** dùng `ZOMBIE_TIER_SCALING` từ `src/data/zombieData.ts`:
   - regular: tăng cân bằng
   - fast: ưu tiên speed
@@ -128,6 +133,13 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - **`slowFactor: number`** — fraction speed reduction (0–0.6); set mỗi frame bởi HomeBase nếu trong aura, reset về 0 cuối mỗi frame
 - **`stunTimer: number`** — giây còn lại bị stun; khi > 0 bỏ qua move + attack
 - **`stun(duration)`** — method để set stunTimer (max với value hiện tại)
+- **Aggro state machine:**
+  - `aggroTarget: 'base' | 'player'` — mục tiêu hiện tại; mặc định `'base'`
+  - `aggroTimer: number` — giây còn lại của hit-aggro; reset về `'base'` khi hết + player > 200px
+  - **`aggroHit(duration = 4)`** — gọi từ `Game.ts` khi bullet player hit zombie; set `aggroTarget = 'player'` trong `duration` giây
+  - **Proximity aggro:** player vào trong 120px → `aggroTarget = 'player'` ngay lập tức
+  - **Leash:** `aggroTarget === 'player'` AND `playerDist > 200` AND `aggroTimer <= 0` → reset về `'base'`
+  - Tower vẫn priority cao nhất: zombie đang chase player nhưng gặp tower gần vẫn quay sang đánh tower
 - **Visual state fields:** `attackFlashTimer` (0.12s, dùng nội bộ), `attackAnimTimer` (0.3s, drive `'attack'` animState), `wobbleTimer` (tích lũy khi di chuyển), `hitRecoilTimer` (0.1s, squeeze 95% khi bị hit)
 - **Animation state machine** (`src/data/zombieAnimationData.ts`):
   - `animState: AnimationState` — `'idle' | 'walk' | 'attack' | 'windup' | 'stun'`
@@ -135,7 +147,7 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
   - `updateAnimation(dt, moving)` — tự động transition state, advance frame
 - **Wind-up attack** — delay thực sự trước khi damage apply:
   - `windupActive: boolean`, `windupTimer: number`, `windupMax: number`
-  - `WINDUP_DURATIONS`: regular=0.2s, fast=0.15s, tank=0.4s, armored=0.3s, boss=0.4s
+  - `WINDUP_DURATIONS`: regular=0.2s, fast=0.15s, tank=0.4s, armored=0.3s, boss=0.4s, healer=0.25s, spitter=0.30s
   - Khi `windupTimer <= 0`: apply damage, set `attackAnimTimer=0.3`, gọi `game.spawnZombieSlash()`
 - **Combo damage** — `comboCounter` (0→1→2→reset) nhân với `COMBO_DAMAGE_MULT = [1.0, 1.15, 1.35]`
 - **`game.spawnZombieSlash(x, y, fromAngle, archetype)`** — interface `GameRef` yêu cầu method này; Game.ts delegate sang `effects.spawnZombieSlash()`
@@ -151,6 +163,9 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - **`armorPiercing: boolean`** — bỏ qua 50% damage reduction của armored/boss (machineGunAP)
 - **`splashFraction: number`** — AoE damage fraction (default 0.5); dùng bởi inferno fireball
 - **`splashRadius: number`** — AoE radius (default 60); dùng bởi inferno fireball (40px)
+- **`hitsBase: boolean`** — nếu true, bullet check collision với HomeBase (acid blob từ spitter); xử lý trong Game.ts bullet loop
+- **`isPoisoned: boolean`** / `poisonDps: number` / `poisonDuration: number` — poison tower bullets; hit zombie tăng `poisonStacks` capped tại `poisonMaxStacks`
+- **`canRicochet: boolean`** / `hasRichocheted: boolean`** — ricochetRounds skill; khi bullet expires, spawn ricochet bullet nếu chưa bounce
 
 ### `HomeBase` (`src/entities/HomeBase.ts`)
 - **Visual state fields:** `rotationAngle` (tăng 0.4 rad/s, drive outer ring rotation), `pulseTimer` (tăng mỗi dt, drive inner core glow pulse) — cả hai increment trong `update()`
@@ -179,11 +194,13 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 
 | Type | Iron | Core | HP | Range | Damage | FireRate | Special |
 |------|------|------|----|-------|--------|----------|---------|
-| barricade | 3 | 0 | 400 | 0 | 0 | 0 | Physical blocker |
+| barricade | 4 | 0 | 400 | 0 | 0 | 0 | Physical blocker |
 | fireTower | 25 | 8 | 180 | 160 | 30 | 1.5 | Burn 8 DPS×3s, passthrough |
-| electricTower | 20 | 12 | 140 | 180 | 12 | 1.0 | Chain 4 targets, +8%/target |
-| repairTower | 15 | 10 | 100 | 150 | 0 | 0 | Spawns 3 workers |
+| electricTower | 20 | 10 | 140 | 180 | 18 | 1.0 | Chain 4 targets, +8%/target |
+| repairTower | 15 | 10 | 130 | 150 | 0 | 0 | Spawns 3 workers |
 | machineGunTower | 30 | 6 | 220 | 200 | 6 | 12 | Rapid single-target |
+| freezeTower | 18 | 14 | 120 | 170 | 0 | 0 | Cryo pulse 2.5s, slowFactor 0.35 AoE |
+| poisonTower | 22 | 10 | 150 | 140 | 4 | 2.0 | Poison 8 DPS×3.5s, stacks ×3 |
 
 ---
 
@@ -194,10 +211,13 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 | ID | Class | DMG | FireRate | Spread | Reload | Mag | Speed | Cost | ShakeIntensity | ShakeDuration |
 |----|-------|-----|----------|--------|--------|-----|-------|------|----------------|---------------|
 | pistol_m9 | pistol | 18 | 3 | 3° | 1.2s | 15 | 1400 | 0 | 0.8 | 0.06s |
-| shotgun_870 | shotgun | 12×8 | 0.8 | 18° | 2.5s | 6 | 1100 | 200 | 2.5 | 0.12s |
-| ar_m4 | assaultRifle | 22 | 8 | 4° | 2.0s | 30 | 1800 | 350 | 1.0 | 0.07s |
-| smg_mp5 | smg | 14 | 12 | 6° | 1.8s | 40 | 1600 | 280 | 0.6 | 0.05s |
-| sniper_awp | sniperRifle | 150 | 0.5 | 0.5° | 3.0s | 5 | 2800 | 600 | 3.5 | 0.15s |
+| shotgun_870 | shotgun | 12×8 | 0.8 | 18° | 2.5s | 6 | 1100 | 180 | 2.5 | 0.12s |
+| ar_m4 | assaultRifle | 22 | 8 | 4° | 2.0s | 30 | 1800 | 300 | 1.0 | 0.07s |
+| smg_mp5 | smg | 14 | 12 | 6° | 1.8s | 40 | 1600 | 220 | 0.6 | 0.05s |
+| sniper_awp | sniperRifle | 175 | 0.5 | 0.5° | 3.0s | 5 | 2800 | 550 | 3.5 | 0.15s |
+| smg_vector | smg | 10 | 18 | 8° | 1.2s | 25 | 1700 | 420 | 0.5 | 0.04s |
+| rl_m79 | grenadeLauncher | 55 | 0.8 | 2° | 2.6s | 6 | 900 | 420 | 4.0 | 0.18s |
+| rifle_dsr | marksmanRifle | 75 | 2.0 | 1.2° | 2.2s | 12 | 2200 | 500 | 1.8 | 0.09s |
 
 ---
 
@@ -230,10 +250,10 @@ export type SkillRarity = 'common' | 'rare' | 'legendary'
 **Common (8):**
 | ID | Effect | MaxStack |
 |----|--------|---------|
-| healthBoost | +30 maxHP, heal 15 | 5 |
-| damageBoost | +8 damage | 5 |
-| attackSpeed | +15% fire rate | 3 |
-| armorUp | +3 armor | 4 |
+| healthBoost | +25 maxHP, heal 12 | 5 |
+| damageBoost | +6 damage | 5 |
+| attackSpeed | +12% fire rate | 3 |
+| armorUp | +4 armor | 4 |
 | speedBoost | +25 speed | 4 |
 | reloadMaster | +25% reload speed | 4 |
 | xpBoost | +20% XP gain | 3 |
@@ -242,11 +262,11 @@ export type SkillRarity = 'common' | 'rare' | 'legendary'
 **Rare (7):**
 | ID | Effect | MaxStack |
 |----|--------|---------|
-| critBoost | +10% crit (max 80%) | 5 |
-| bulletDamage | +20% damage multiplier | 4 |
+| critBoost | +10% crit (max 80%) | 4 |
+| bulletDamage | +15% damage multiplier | 4 |
 | doubleBullet | bulletCount=2 (Twin Shot) | 1 |
-| lifesteal | +4% lifesteal per hit | 3 |
-| dodgeUp | +10% dodge chance (max 40%) | 4 |
+| lifesteal | +3% lifesteal per hit | 3 |
+| dodgeUp | +8% dodge chance (max 32%) | 4 |
 | lastStand | <25% HP: +40% dmg, +30 speed | 1 |
 | berserker | Each kill in 3s: +5% dmg (max +50%) | 1 |
 
@@ -258,6 +278,19 @@ export type SkillRarity = 'common' | 'rare' | 'legendary'
 | overcharge | first shot after reload ×2 dmg | 1 |
 | phantomRound | 20% chance không tốn đạn | 1 |
 | deathMark | enemies <20% HP nhận ×2 dmg | 1 |
+| executioner | kill <30% HP → next shot ×3 dmg + gold aura | 1 |
+
+**Common — v1.7 (2):**
+| ID | Effect | MaxStack |
+|----|--------|---------|
+| kineticStrike | 10 hits same target → stun 0.6s | 1 |
+| focusedFire | consecutive same-dir shots: +4% dmg/shot up to +80% | 2 |
+
+**Rare — v1.7 (2):**
+| ID | Effect | MaxStack |
+|----|--------|---------|
+| acidCoating | bullets apply 3 DPS/stack acid for 2s | 3 |
+| ricochetRounds | expired bullets spawn ricochet 60% dmg | 1 |
 
 ### Base Skills — now in `src/data/baseSkillTree.ts` (47 nodes, 3 branches + root)
 
@@ -286,6 +319,23 @@ Skills are unlocked via `BaseSkillTreeModal` by spending crystal. `BASE_SKILL_TR
 
 ---
 
+## Audio System (`src/core/AudioManager.ts`)
+
+Web Audio API synthesis (no audio asset files). Initialized after first user interaction via `game.start()`.
+- `init()` — creates AudioContext + DynamicsCompressor chain; call once in `Game.start()`
+- `setEnabled(v)` / `isEnabled` getter — mute toggle; preference persisted to `localStorage('sfx_enabled')`
+- **M key** in Game.ts và **SFX button** in HUD section 4 both toggle audio
+- `playGunshot(weaponClass)` — dispatches per class: pistol/shotgun/assaultRifle/smg/sniperRifle/grenadeLauncher/marksmanRifle
+- `playReload(weaponClass)` / `playDryFire()` — metallic click sounds
+- `playZombieHit(archetype)` / `playZombieDead(archetype)` / `playBossRoar()`
+- `playExplosion(intensity?)` — sub-bass boom, used for grenadeLauncher and boss death
+- `playWaveClear()` — C4→E4→G4 arpeggio; `playWaveStart()` — sawtooth sweep
+- `playLevelUp()` — C4→G4→C5→E5 fanfare; `playPickup()` — rising chirp
+- `playTowerPlace()` — clunk; `playUIClick()` — sharp tick; `playSkillPick()` — two-tone rising
+- Internal helpers: `noise(duration)`, `bandpass()`, `lowpass()`, `highpass()`, `osc()`
+
+---
+
 ## UI Components
 
 ### `HUD` (`src/ui/HUD.ts`)
@@ -293,17 +343,16 @@ Skills are unlocked via `BaseSkillTreeModal` by spending crystal. `BASE_SKILL_TR
 - Weapon slots: rebuild khi count/activeIndex đổi, fast-path update ammo/border thường xuyên
 - Resource bar: `innerHTML` với SVG icons từ `icons.ts`
 - Click trên weapon slot → `player.switchToSlot()`
-- **Upgrade Stats section** (section 5 trong bottom bar grid): chỉ còn **CHAR** group (amber) — BASE group đã xóa
-  - Luôn hiện **3 ô cố định** — ô rỗng có crosshair icon mờ, ô có skill có border glow + corner accent
-  - 3 skill mới nhất được hiện (insertion order của Map), right-aligned
+- **Upgrade Stats + Base buttons section** (section 4, merged): **CHAR** group (amber) + BASE TREE/SFX buttons trong cùng một cột
+  - Chỉ hiện các skill đã có — không có empty placeholder slots; 3 skill mới nhất (insertion order của Map)
+  - "No skills yet" text khi chưa có skill nào
   - **Hover tooltip**: tên skill + stack count, border top màu amber
   - **×N badge** góc dưới phải nếu stack > 1
-  - **Nút ⤢** (expand) góc trên phải section — xuất hiện khi player skills > 3
-  - Click ⤢ → modal `#hud-upg-modal` phía trên HUD bar, hiện tất cả player skills
+  - **Nút ⤢** (expand) xuất hiện khi player skills > 3 → modal `#hud-upg-modal` phía trên HUD bar
   - Hash-based update: chỉ rebuild DOM khi skill thay đổi (`lastPlayerUpgHash` init = `'__init__'`)
-  - Imports `PLAYER_SKILL_POOL` để lookup icon/label; BASE_SKILL_POOL không còn cần trong HUD
-- **BASE TREE button** (section 6, column 6): `cpu` SVG icon + "BASE TREE" text, click → `game.baseSkillTreeModal.show()`
-- **Grid columns**: `180px 1fr 130px auto auto auto` (6 cột)
+  - **BASE TREE** + **SFX** buttons nằm ở row cuối của cùng section (height 22px, compact)
+  - Section luôn hiển thị dù ở ultra layout mode (chứa buttons quan trọng)
+- **Grid columns**: 5 cột — `minmax(168px,190px) minmax(180px,1fr) minmax(230px,1.6fr) minmax(200px,260px) minmax(150px,210px)`
 
 ### `BreakPanel` (`src/ui/BreakPanel.ts`)
 - Slide in/out từ phải (`panel-open` CSS class)
@@ -333,7 +382,9 @@ Skills are unlocked via `BaseSkillTreeModal` by spending crystal. `BASE_SKILL_TR
 - `spawnFireTrail(x, y, angle)` — 3 particles/call, backward direction, life 0.1–0.18s
 - `spawnShockwaveDebris(x, y, color)` — 10 debris particles + 6 white sparks, radial outward với gravity — dùng cho garrison stomp impact
 - `spawnHealParticles(x, y)` — 4 particles xanh lá bay lên (gravity âm), dùng cho medic heal visual
-- `spawnZombieSlash(x, y, fromAngle, archetype)` — spawn vết tấn công tại vị trí target; dùng `SlashEffect` (straight-line strokes chạy theo `perp`, không phải arc); mỗi archetype có pattern riêng: regular=3 đường song song cách 8px, fast=4 đường mỏng cách 8px, tank=2 đường dày + dấu X chéo, armored=3 đường ngắn cứng + ricochet line, boss=5 đường rộng dần + dấu X lớn
+- `spawnZombieSlash(x, y, fromAngle, archetype)` — spawn vết tấn công tại vị trí target; mỗi archetype có pattern riêng: regular=3 đường song song, fast=4 đường mỏng, tank=2 đường dày+X, armored=3 ngắn+ricochet, boss=5 rộng+X lớn, healer=2 đường xanh mỏng, spitter=acid spit mark+drip dots
+- `spawnFrostPulse(x, y, radius)` — 20 ice shard particles radial từ freeze tower mỗi pulse
+- `spawnBloodSplatter(x, y, killAngle, archetype)` — extended với healer (8 particles) và spitter (10 particles, greenish)
 - `triggerDamageFlash()` / `triggerExplosionFlash()` — full-screen color overlay
 
 **`SlashEffect` struct** (internal): `strokes: SlashStroke[]`, `life`, `maxLife`, `glowColor`, `flashRadius`, `flashColor`, `impactX`, `impactY` — mỗi `SlashStroke` có `cx, cy, r, startAngle, endAngle, lineWidth, color, delay` + optional `isCrack, crackX1/Y1/X2/Y2` cho straight-line strokes
@@ -395,7 +446,7 @@ T.font = "'Russo One', sans-serif"
 ## Wave Scaling (`src/systems/Spawner.ts`)
 
 - HP/damage multiplier: `1 + (waveIndex - 1) × 0.18`
-- Wave 1: regular only → Wave 2+: +fast → Wave 3+: +tank → Wave 4+: +armored
+- Wave 1: regular only → Wave 2+: +fast → Wave 3+: +tank +spitter → Wave 4+: +armored → Wave 5+: +healer
 - Every 5th wave: boss zombie (2000 HP, drops Crystal)
 - Spawn points: 8 edges + corners quanh world với random jitter
 - **Zombie tier evolution (non-boss only):**
@@ -566,6 +617,8 @@ Spawn at wave start via `spawnGarrison()` if `base.garrisonEnabled`. Visual iden
 8. **Kill tracking:** Tất cả zombie kills đi qua `game.onZombieDead()` — đây là điểm duy nhất gọi `player.onKill()`, spawn drops, và add XP. Không increment `player.kills` trực tiếp ở nơi khác.
 
 9. **Zombie slow/stun:** `slowFactor` reset về 0 mỗi frame trong `Zombie.update()` — HomeBase phải re-apply mỗi frame trong `applyAura()`. `stunTimer > 0` bỏ qua toàn bộ movement và attack.
+
+9b. **Zombie aggro AI:** `aggroTarget` quyết định zombie di chuyển về phía player hay base. Trigger aggro: (a) player vào trong 120px — proximity; (b) bullet player hit — `z.aggroHit(4)` trong Game.ts. Leash: khi `aggroTimer` hết và `playerDist > 200` → reset về `'base'`. Tower vẫn priority cao nhất bất kể aggroTarget. Spitter và healer (khi đang heal) không bị ảnh hưởng bởi aggro logic.
 
 10. **Tower aura buffs:** `auraDamageBonus` và `auraRangeBonus` trên Tower được set mỗi frame bởi `base.applyAura()` — reset về 0 khi tower ra ngoài aura radius.
 

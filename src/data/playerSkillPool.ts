@@ -23,6 +23,11 @@ export type PlayerSkillId =
   | 'overcharge'
   | 'phantomRound'
   | 'deathMark'
+  | 'acidCoating'
+  | 'kineticStrike'
+  | 'ricochetRounds'
+  | 'focusedFire'
+  | 'executioner'
 
 export interface PlayerSkillDef {
   id: PlayerSkillId
@@ -39,41 +44,41 @@ export const PLAYER_SKILL_POOL: PlayerSkillDef[] = [
   {
     id: 'healthBoost',
     label: 'Iron Constitution',
-    description: '+30 Max HP and heals 15 HP.',
+    description: '+25 Max HP and heals 12 HP.',
     icon: 'heart',
     rarity: 'common',
     maxStacks: 5,
     apply: (p) => {
-      p.stats.maxHp += 30
-      p.stats.hp = Math.min(p.stats.hp + 15, p.stats.maxHp)
+      p.stats.maxHp += 25
+      p.stats.hp = Math.min(p.stats.hp + 12, p.stats.maxHp)
     },
   },
   {
     id: 'damageBoost',
     label: 'Raw Power',
-    description: '+8 bullet damage.',
+    description: '+6 bullet damage.',
     icon: 'zap',
     rarity: 'common',
     maxStacks: 5,
-    apply: (p) => { p.stats.damage += 8 },
+    apply: (p) => { p.stats.damage += 6 },
   },
   {
     id: 'attackSpeed',
     label: 'Trigger Finger',
-    description: '+15% fire rate.',
+    description: '+12% fire rate.',
     icon: 'crosshair',
     rarity: 'common',
     maxStacks: 3,
-    apply: (p, stack) => { p.fireRateMultiplier = 1 + stack * 0.15 },
+    apply: (p, stack) => { p.fireRateMultiplier = 1 + stack * 0.12 },
   },
   {
     id: 'armorUp',
     label: 'Combat Vest',
-    description: '+3 armor (damage reduction).',
+    description: '+4 armor (damage reduction).',
     icon: 'shield',
     rarity: 'common',
     maxStacks: 4,
-    apply: (p) => { p.stats.armor += 3 },
+    apply: (p) => { p.stats.armor += 4 },
   },
   {
     id: 'speedBoost',
@@ -119,18 +124,18 @@ export const PLAYER_SKILL_POOL: PlayerSkillDef[] = [
     description: '+10% critical hit chance (max 80%).',
     icon: 'eye',
     rarity: 'rare',
-    maxStacks: 5,
+    maxStacks: 4,
     apply: (p) => { p.stats.critChance = Math.min(0.8, p.stats.critChance + 0.1) },
   },
   {
     id: 'bulletDamage',
     label: 'Hollow Point',
-    description: '+20% bullet damage multiplier.',
+    description: '+15% bullet damage multiplier.',
     icon: 'circle-dot',
     rarity: 'rare',
     maxStacks: 4,
     apply: (p, stack) => {
-      p.stats.damage = Math.round(p.stats.damage * (1 + stack * 0.2) / (1 + (stack - 1) * 0.2))
+      p.stats.damage = Math.round(p.stats.damage * (1 + stack * 0.15) / (1 + (stack - 1) * 0.15))
     },
   },
   {
@@ -145,20 +150,20 @@ export const PLAYER_SKILL_POOL: PlayerSkillDef[] = [
   {
     id: 'lifesteal',
     label: 'Vampiric',
-    description: '+4% lifesteal — heal HP on every bullet hit.',
+    description: '+3% lifesteal — heal HP on every bullet hit.',
     icon: 'heart',
     rarity: 'rare',
     maxStacks: 3,
-    apply: (p) => { p.stats.lifesteal += 0.04 },
+    apply: (p) => { p.stats.lifesteal += 0.03 },
   },
   {
     id: 'dodgeUp',
     label: 'Ghost Step',
-    description: '+10% chance to dodge incoming damage (max 40%).',
+    description: '+8% chance to dodge incoming damage (max 32%).',
     icon: 'map',
     rarity: 'rare',
     maxStacks: 4,
-    apply: (p) => { p.stats.dodgeChance = Math.min(0.4, p.stats.dodgeChance + 0.1) },
+    apply: (p) => { p.stats.dodgeChance = Math.min(0.32, p.stats.dodgeChance + 0.08) },
   },
   {
     id: 'lastStand',
@@ -224,5 +229,52 @@ export const PLAYER_SKILL_POOL: PlayerSkillDef[] = [
     rarity: 'legendary',
     maxStacks: 1,
     apply: (p) => { p.deathMarkEnabled = true },
+  },
+
+  // ── NEW v1.7 SKILLS ────────────────────────────────────────────────────
+  {
+    id: 'acidCoating',
+    label: 'Acid Coating',
+    description: 'Bullets coat enemies in acid: 3 DPS per stack for 2s (max 3 stacks).',
+    icon: 'flame',
+    rarity: 'rare',
+    maxStacks: 3,
+    apply: (p, stack) => { p.acidCoatingEnabled = true; p.acidCoatingStacks = stack },
+  },
+  {
+    id: 'kineticStrike',
+    label: 'Kinetic Strike',
+    description: 'Every 10 consecutive hits on the same enemy stuns it for 0.6s.',
+    icon: 'zap',
+    rarity: 'common',
+    maxStacks: 1,
+    apply: (p) => { p.kineticStrikeEnabled = true },
+  },
+  {
+    id: 'ricochetRounds',
+    label: 'Ricochet Rounds',
+    description: 'Bullets that expire in the air bounce once at 60% damage in a random direction.',
+    icon: 'arrow-right',
+    rarity: 'rare',
+    maxStacks: 1,
+    apply: (p) => { p.ricochetEnabled = true },
+  },
+  {
+    id: 'focusedFire',
+    label: 'Focused Fire',
+    description: 'Consecutive shots in the same direction build +4% damage per shot (max +40% per stack).',
+    icon: 'crosshair',
+    rarity: 'common',
+    maxStacks: 2,
+    apply: (p, stack) => { p.focusedFireEnabled = true; p.focusedFireMaxStacks = stack * 10 },
+  },
+  {
+    id: 'executioner',
+    label: 'Executioner',
+    description: 'Killing an enemy below 30% HP charges your next shot for 2s: triple damage.',
+    icon: 'sword',
+    rarity: 'legendary',
+    maxStacks: 1,
+    apply: (p) => { p.executionerEnabled = true },
   },
 ]
