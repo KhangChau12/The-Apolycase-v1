@@ -1722,6 +1722,30 @@ export class Game {
         ctx.restore()
       }
 
+      // Death Mark indicator — red pulsing cross hairs on zombies below 20% HP when skill is active
+      if (this.player.deathMarkEnabled && z.hp / z.maxHp < 0.2) {
+        const dm = Date.now()
+        const pulse = 0.5 + 0.5 * Math.abs(Math.sin(dm / 150))
+        ctx.save()
+        ctx.globalAlpha = 0.7 * pulse
+        ctx.strokeStyle = T.blood
+        ctx.lineWidth = 1.5
+        ctx.shadowColor = T.blood
+        ctx.shadowBlur = 10
+        const cr = z.radius + 4
+        // Cross hairs: 4 ticks at cardinal angles
+        for (let t2 = 0; t2 < 4; t2++) {
+          const a = (t2 / 4) * Math.PI * 2
+          ctx.beginPath()
+          ctx.moveTo(Math.cos(a) * (cr - 3), Math.sin(a) * (cr - 3))
+          ctx.lineTo(Math.cos(a) * (cr + 3), Math.sin(a) * (cr + 3))
+          ctx.stroke()
+        }
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+        ctx.restore()
+      }
+
       // DSR target lock reticle — shows lock progress on current combo target
       const p2 = this.player
       if (p2.ownedWeapons.length > 0 && p2.currentWeapon.id === 'rifle_dsr' && p2.dsrComboTarget === z && p2.dsrComboCount > 0) {
