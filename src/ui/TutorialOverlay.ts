@@ -49,6 +49,14 @@ export class TutorialOverlay {
           ${S.row(getIcon('refresh-cw', 14, T.hpHigh), 'R', 'Manual reload')}
           ${S.sep()}
           ${S.row(getIcon('layers', 14, T.hpHigh), '1 – 9', 'Switch weapon slot')}
+          ${S.sep()}
+          ${S.row(getIcon('shield', 14, T.iron), 'B', 'Toggle barricade placement mode')}
+          ${S.sep()}
+          ${S.row(getIcon('package', 14, T.iron), 'U', 'Open / close the upgrade shop')}
+          ${S.sep()}
+          ${S.row(getIcon('zap', 14, T.iron), 'M', 'Toggle sound on/off')}
+          ${S.sep()}
+          ${S.row(getIcon('expand', 14, T.iron), 'F', 'Toggle fullscreen')}
         </div>
         <div style="${S.section(T.hpHigh)}">
           ${S.sectionHeader(T.hpHigh, getIcon('package', 13, T.hpHigh), 'DROPS')}
