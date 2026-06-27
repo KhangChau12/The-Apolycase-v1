@@ -45,6 +45,7 @@ export class Player {
   angle = 0
   invincibleTimer = 0
   pendingDodge = false    // set true when dodge triggers; consumed by Game.ts for visual/audio
+  private _lastCrit = false  // set true in calcDamage() when crit fires; read after each bullet spawn
 
   stats: PlayerStats = {
     maxHp: 100,
@@ -319,6 +320,7 @@ export class Player {
       b.lifesteal = this.stats.lifesteal
       b.deathMark = this.deathMarkEnabled
       b.canRicochet = this.ricochetEnabled
+      b.isCrit = this._lastCrit
       if (w.class === 'shotgun') b.knockback = 20
       // Grenade launcher bullets always explode
       if (w.class === 'grenadeLauncher') {
@@ -428,6 +430,7 @@ export class Player {
     }
 
     const crit = Math.random() < this.stats.critChance
+    this._lastCrit = crit
     return crit ? Math.floor(base * 2) : base
   }
 

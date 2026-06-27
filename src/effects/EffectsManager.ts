@@ -255,6 +255,24 @@ export class EffectsManager {
     ctx.restore()
   }
 
+  spawnCritFlash(x: number, y: number): void {
+    // Golden starburst — 8 radial sparks + central bright particle
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2
+      this.particles.push(new Particle(x, y, T.gold, 3 + Math.random() * 2, 140 + Math.random() * 60, {
+        dirAngle: a,
+        spread:   0.15,
+        sizeDecay: 12,
+        life:     0.20 + Math.random() * 0.08,
+      }))
+    }
+    // Bright center
+    this.particles.push(new Particle(x, y, '#FFFFFF', 5, 0, {
+      life: 0.10,
+      sizeDecay: 50,
+    }))
+  }
+
   spawnHitSpark(x: number, y: number, hitAngle: number): void {
     const count = 6
     for (let i = 0; i < count; i++) {

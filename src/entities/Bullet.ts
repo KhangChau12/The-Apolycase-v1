@@ -35,6 +35,7 @@ export class Bullet {
   canRicochet = false      // ricochetRounds skill — bounce once on expiry
   hasRichocheted = false   // prevents infinite bounce chain
   knockback = 0            // shotgun: push target away from shooter by this many px per pellet hit
+  isCrit = false           // true when calcDamage() rolled a crit; used for golden flash VFX at hit
 
   constructor(x: number, y: number, angle: number, speed: number, damage: number, owner: BulletOwner) {
     this.x = x
