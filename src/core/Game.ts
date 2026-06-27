@@ -659,8 +659,11 @@ export class Game {
         const angle = (i / alive.length) * Math.PI * 2
         u.x = BASE_X + Math.cos(angle) * 50
         u.y = BASE_Y + Math.sin(angle) * 50
+        u.warlordMult = 1.5
+        this.effects.spawnShockwaveDebris(u.x, u.y, T.gold)
       })
-      this.hud.showMessage("Warlord's Command! Garrison teleported!", T.gold)
+      this.hud.showMessage("Warlord's Command! Garrison +50% damage!", T.gold)
+      this.shake(1.5, 0.3)
     }
 
     // Base active attacks
@@ -1282,8 +1285,9 @@ export class Game {
       ctx.translate(u.x, u.y)
       ctx.rotate(u.angle + Math.PI / 2)
       ctx.scale(scale, scale)
-      ctx.shadowColor = glow
-      ctx.shadowBlur = isFlashing ? 28 : 10
+      const isWarlord = u.warlordMult > 1
+      ctx.shadowColor = isWarlord ? T.gold : glow
+      ctx.shadowBlur = isFlashing ? 28 : (isWarlord ? 18 : 10)
       if (u.type === 'soldier') {
         this._drawSoldierShape(ctx, r, fill, glow, isFlashing)
       } else if (u.type === 'heavy') {
@@ -1299,6 +1303,21 @@ export class Game {
       // --- Draw shockwave ring + HP bar (world-aligned, only translate) ---
       ctx.save()
       ctx.translate(u.x, u.y)
+
+      // Warlord gold orbit ring
+      if (isWarlord) {
+        const pulse = 0.55 + 0.35 * Math.sin(Date.now() / 200 + u.x)
+        ctx.strokeStyle = T.gold
+        ctx.lineWidth = 1.5
+        ctx.globalAlpha = pulse
+        ctx.shadowColor = T.gold
+        ctx.shadowBlur = 6
+        ctx.beginPath()
+        ctx.arc(0, 0, r + 6, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+      }
 
       if (u.stompPulseTimer > 0) {
         const progress = 1 - u.stompPulseTimer / u.stompPulseMax
@@ -1506,7 +1525,7 @@ export class Game {
     // Sum damage of all alive soldiers and divide by burst (3 shots Ă— 2 bullets = 6 bullet events per cooldown)
     const totalSoldierDmg = this.garrisonUnits
       .filter(u => u.type === 'soldier' && u.alive)
-      .reduce((sum, u) => sum + u.damage, 0) || 15
+      .reduce((sum, u) => sum + u.damage * u.warlordMult, 0) || 15
     const perShotDmg = totalSoldierDmg / 1.5 / 3 / 2
 
     for (const angle of [pb.angle, pb.angle2]) {

@@ -42,6 +42,7 @@ export class GarrisonUnit {
 
   respawnTimer = 0
   hasRespawned = false
+  warlordMult = 1.0      // set to 1.5 by Game.ts when Warlord's Command triggers
 
   // --- Animation state (read by Game.ts for rendering) ---
   attackFlashTimer = 0          // >0 = glow burst on unit
@@ -169,7 +170,7 @@ export class GarrisonUnit {
       } else {
         if (this.attackCooldown <= 0) {
           // Stomp AOE from self position
-          const attackDmg = this.damage / this.profile.attackRate
+          const attackDmg = this.damage * this.warlordMult / this.profile.attackRate
           this.pendingStompSplash = {
             x: this.x,
             y: this.y,
@@ -247,7 +248,7 @@ export class GarrisonUnit {
   }
 
   private _fireTitanStomp(): void {
-    const attackDmg = this.damage / this.profile.attackRate
+    const attackDmg = this.damage * this.warlordMult / this.profile.attackRate
     const splashR = this.profile.splashRadius ?? 120
 
     // primary target full damage
