@@ -215,7 +215,7 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 | ar_m4 | assaultRifle | 22 | 8 | 4° | 2.0s | 30 | 1800 | 300 | 1.0 | 0.07s |
 | smg_mp5 | smg | 14 | 12 | 6° | 1.8s | 40 | 1600 | 220 | 0.6 | 0.05s |
 | sniper_awp | sniperRifle | 175 | 0.5 | 0.5° | 3.0s | 5 | 2800 | 550 | 3.5 | 0.15s |
-| smg_vector | smg | 10 | 18 | 8° | 1.2s | 25 | 1700 | 420 | 0.5 | 0.04s |
+| smg_vector | smg | 8 | 20 | 8° | 1.2s | 25 | 1700 | 420 | 0.5 | 0.04s |
 | rl_m79 | grenadeLauncher | 55 | 0.8 | 2° | 2.6s | 6 | 900 | 420 | 4.0 | 0.18s |
 | rifle_dsr | marksmanRifle | 75 | 2.0 | 1.2° | 2.2s | 12 | 2200 | 500 | 1.8 | 0.09s |
 
