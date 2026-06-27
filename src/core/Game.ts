@@ -1863,6 +1863,30 @@ export class Game {
         ctx.globalAlpha = 1
       }
 
+      // Kinetic Strike hit counter — cyan ticks on the targeted zombie
+      if (this.player.kineticStrikeEnabled && this.player.kineticLastTarget === z && this.player.kineticHitStreak > 0) {
+        const streak = this.player.kineticHitStreak
+        const tickCount = Math.min(streak, 10)
+        const tickAlpha = 0.5 + 0.5 * (streak / 10)
+        ctx.save()
+        ctx.strokeStyle = T.crystalCyan
+        ctx.lineWidth = 1.2
+        ctx.shadowColor = T.crystalCyan
+        ctx.shadowBlur = 5
+        ctx.globalAlpha = tickAlpha
+        const startX2 = -(tickCount * 4 - 2) / 2
+        for (let ti = 0; ti < tickCount; ti++) {
+          const tx = startX2 + ti * 4
+          ctx.beginPath()
+          ctx.moveTo(tx, z.radius + 6)
+          ctx.lineTo(tx, z.radius + 12)
+          ctx.stroke()
+        }
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+        ctx.restore()
+      }
+
       // BOSS label badge
       if (z.archetype === 'boss') {
         const by = -z.radius - 22
