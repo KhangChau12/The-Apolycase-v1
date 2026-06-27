@@ -1141,6 +1141,13 @@ export class Game {
         ctx.shadowBlur = 14
       }
 
+      // Freeze tower body glow flare when pulse fires (fades with ring)
+      if (t.profile.type === 'freezeTower' && t.pulseRingTimer > 0 && t.pulseRingMax > 0) {
+        const freshness = t.pulseRingTimer / t.pulseRingMax   // 1 = just fired, 0 = done
+        ctx.shadowColor = '#88EEFF'
+        ctx.shadowBlur = 10 + 22 * freshness
+      }
+
       if (t.profile.type === 'fireTower') {
         this.drawFireTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'electricTower') {
