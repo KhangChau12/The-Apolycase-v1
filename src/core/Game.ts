@@ -1938,6 +1938,24 @@ export class Game {
       ctx.restore()
     }
 
+    // AR Focus precision active — tight green ring when standing still 0.3s+
+    if (p.ownedWeapons.length > 0 && p.currentWeapon.id === 'ar_m4' && p.arStillTimer >= 0.3) {
+      const focusPulse = 0.55 + 0.35 * Math.abs(Math.sin(Date.now() / 200))
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.strokeStyle = T.hpHigh
+      ctx.lineWidth = 1.5
+      ctx.shadowColor = T.hpHigh
+      ctx.shadowBlur = 10
+      ctx.globalAlpha = focusPulse
+      ctx.beginPath()
+      ctx.arc(0, 0, 14, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+      ctx.restore()
+    }
+
     // Last Stand active — red danger ring when HP < 25%
     if (p.lastStandEnabled && p.stats.hp / p.stats.maxHp < 0.25) {
       const now2 = Date.now()
