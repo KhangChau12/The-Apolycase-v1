@@ -409,12 +409,19 @@ export class HUD {
     if (phpFill) { phpFill.style.width = `${phpPct * 100}%`; phpFill.style.background = T.hpColor(phpPct) }
     if (phpVal)  phpVal.textContent = `${Math.ceil(p.stats.hp)}/${p.stats.maxHp}`
 
-    // Base HP
+    // Base HP + shield overlay
     const bhpPct = Math.max(0, Math.min(1, b.hp / b.maxHp))
     const bhpFill = this.el.querySelector('#hud-base-hp-fill') as HTMLElement | null
     const bhpVal  = this.el.querySelector('#hud-base-hp-val')  as HTMLElement | null
     if (bhpFill) { bhpFill.style.width = `${bhpPct * 100}%`; bhpFill.style.background = T.hpColor(bhpPct) }
-    if (bhpVal)  bhpVal.textContent = `${Math.ceil(b.hp)}/${b.maxHp}`
+    if (b.shieldHp > 0) {
+      const shPct = b.shieldHp / b.shieldPulseMaxHp
+      if (bhpVal) bhpVal.textContent = `🛡${Math.ceil(b.shieldHp)} | ${Math.ceil(b.hp)}`
+      if (bhpFill) bhpFill.style.boxShadow = `inset 0 0 ${Math.floor(shPct * 8)}px ${T.crystalCyan}`
+    } else {
+      if (bhpFill) bhpFill.style.boxShadow = 'none'
+      if (bhpVal) bhpVal.textContent = `${Math.ceil(b.hp)}/${b.maxHp}`
+    }
 
     // Wave label
     const waveLabel = this.el.querySelector('#hud-wave-label') as HTMLElement | null
