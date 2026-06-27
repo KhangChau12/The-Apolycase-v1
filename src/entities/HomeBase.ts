@@ -178,6 +178,9 @@ export class HomeBase {
     const damageBonus = this.overlordAuraEnabled ? 0.25 : this.towerDamageAura
     const rangeBonus  = this.overlordAuraEnabled ? 0.25 : this.towerRangeAura
     const hpBonus     = this.fortressProtocolEnabled ? 1.0 : 0
+    const towersInAura = this.neuralNetworkEnabled
+      ? towers.filter(t => t.alive && dist(this.x, this.y, t.x, t.y) < this.auraRadius).length
+      : 0
     for (const t of towers) {
       if (!t.alive) continue
       if (dist(this.x, this.y, t.x, t.y) < this.auraRadius) {
@@ -192,6 +195,7 @@ export class HomeBase {
         t.electricEMPActive          = this.electricEMPEnabled
         t.machineGunAPActive         = this.machineGunAPEnabled
         t.neuralNetworkActive        = this.neuralNetworkEnabled
+        t.neuralNetworkBonus         = this.neuralNetworkEnabled ? (towersInAura - 1) * 0.05 : 0
       } else {
         t.auraDamageBonus = 0
         t.auraRangeBonus  = 0
@@ -203,6 +207,7 @@ export class HomeBase {
         t.electricEMPActive         = false
         t.machineGunAPActive        = false
         t.neuralNetworkActive       = false
+        t.neuralNetworkBonus        = 0
       }
     }
 

@@ -31,6 +31,7 @@ export class Tower {
   electricEMPActive = false
   machineGunAPActive = false
   neuralNetworkActive = false
+  neuralNetworkBonus = 0     // set by HomeBase when neuralNetworkActive: +5% dmg per other tower in aura
 
   private fireCooldown = 0
   pulseRingTimer = 0
@@ -71,7 +72,7 @@ export class Tower {
   }
 
   private effectiveDamage(base: number): number {
-    return base * (1 + this.auraDamageBonus)
+    return base * (1 + this.auraDamageBonus + this.neuralNetworkBonus)
   }
 
   private effectiveRange(base: number): number {
