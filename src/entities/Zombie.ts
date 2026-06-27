@@ -262,7 +262,17 @@ export class Zombie {
     const preferredRange = 180
     const distToBase = dist(this.x, this.y, base.x, base.y)
 
-    // Back away if too close
+    // Kite away from player if they get too close (spitter is fragile)
+    const playerDist = game.player ? dist(this.x, this.y, game.player.x, game.player.y) : Infinity
+    if (game.player && playerDist < 120) {
+      this.angle = angleTo(this.x, this.y, game.player.x, game.player.y) + Math.PI
+      this.x += Math.cos(this.angle) * speed * 1.1 * dt
+      this.y += Math.sin(this.angle) * speed * 1.1 * dt
+      this.wobbleTimer += dt
+      return true
+    }
+
+    // Back away if too close to base
     if (distToBase < preferredRange) {
       this.angle = angleTo(this.x, this.y, base.x, base.y) + Math.PI
       this.x += Math.cos(this.angle) * speed * dt
