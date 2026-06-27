@@ -1048,6 +1048,27 @@ export class Game {
     }
 
     // â"€â"€ 9. HP bar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // Divine Shield invulnerability pulse
+    if (b.isInvulnerable) {
+      const flicker = 0.7 + 0.3 * Math.abs(Math.sin(Date.now() / 60))
+      ctx.strokeStyle = `rgba(255,255,240,${0.85 * flicker})`
+      ctx.lineWidth = 3.5
+      ctx.shadowColor = '#FFFFC0'
+      ctx.shadowBlur = 28
+      ctx.beginPath()
+      ctx.arc(0, 0, 68, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      const divGrad = ctx.createRadialGradient(0, 0, 30, 0, 0, 68)
+      divGrad.addColorStop(0, 'rgba(255,255,200,0)')
+      divGrad.addColorStop(0.6, 'rgba(255,255,200,0)')
+      divGrad.addColorStop(1, `rgba(255,255,200,${0.18 * flicker})`)
+      ctx.fillStyle = divGrad
+      ctx.beginPath()
+      ctx.arc(0, 0, 68, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
     const barW = 84, barH = 6, barX = -barW / 2, barY = -76
     ctx.fillStyle = 'rgba(10,8,4,0.8)'
     ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2)
