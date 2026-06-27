@@ -503,6 +503,14 @@ export class Game {
                 if (!ez.alive) this.onZombieDead(ez, hitAngle)
               }
             }
+            // GL self-damage: player hit by own grenade explosion
+            if (b.owner === 'player' && b.weaponClass === 'grenadeLauncher'
+              && dist(b.x, b.y, this.player.x, this.player.y) < splashR) {
+              const selfDmg = Math.ceil(b.damage * 0.15)
+              this.player.stats.hp = Math.max(1, this.player.stats.hp - selfDmg)
+              this.effects.triggerDamageFlash()
+              this.hud.showMessage(`Self-damage! -${selfDmg}`, '#f88')
+            }
             this.effects.spawnRadialBurst(b.x, b.y)
             this.audio.playExplosion()
           }
