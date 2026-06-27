@@ -239,6 +239,11 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 - **Implementation:** `Bullet` gets a `knockback: number` field (default 0). Shotgun bullets set `knockback = 40`. Game.ts bullet-hit handler accumulates pushes per zombie per frame using a `Map<Zombie, {x,y}>`, then applies them after the bullet loop.
 - **Why it fits:** Shotgun is the most expensive close-range weapon (cost 180, damage 12×8 at 0.8/s). Knockback lets skilled players use it as a crowd-control tool — push zombies away from the base entrance, buy time, create space. This is a **different decision** than any other weapon: the AR kills faster, the shotgun buys distance. Cost is low (180) so the mechanic unlocks early as a positioning tool.
 
+**DSR target lock** (`rifle_dsr`):
+- **Mechanic:** Hitting the same zombie 3 times in a row (consecutive hits, no miss to a different target between) triggers a ×2 damage bonus on the 3rd shot. Switching targets resets the combo to 1. Tracked via `dsrComboTarget` (zombie ref), `dsrComboCount` (1–3), `dsrComboBonus` (flag consumed in `calcDamage()`).
+- **Trigger condition:** `b.weaponClass === 'marksmanRifle'` in Game.ts hit handler calls `player.onDsrHit(z)`. `calcDamage()` checks `currentWeapon.id === 'rifle_dsr' && dsrComboBonus`.
+- **Why it fits:** DSR is the premium semi-auto marksman (cost 500, 75 dmg, 2.0/s). It sits between the AWP (single massive shot, slow) and the AR (spray). Target lock rewards sustained focus on one zombie over tracking multiple targets — ideal for killing elites and bosses fast. Every 3 shots = avg ×1.33 bonus, compounding with crits and other multipliers.
+
 **AR M4 precision focus** (`ar_m4`):
 - **Mechanic:** Standing still for ≥0.3s reduces spread from 4° → 1° (×0.25 multiplier). Moving resets the timer instantly. Creates a stop-and-fire micro-rhythm: quick stops for precision bursts, dash between positions.
 - **Trigger condition:** `w.id === 'ar_m4' && arStillTimer >= 0.3` in `updateFire()`. Timer increments in `move()` when no input; resets to 0 on movement.

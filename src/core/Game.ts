@@ -482,6 +482,10 @@ export class Game {
                 z.y += (b.vy / bLen) * b.knockback
               }
             }
+            // DSR target lock: track consecutive hits on same zombie
+            if (b.weaponClass === 'marksmanRifle') {
+              this.player.onDsrHit(z)
+            }
           }
           // Poison tower bullet
           if (b.isPoisoned) {

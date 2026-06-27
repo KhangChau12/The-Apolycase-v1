@@ -109,6 +109,11 @@ export class Player {
   arStillTimer = 0
   private static readonly AR_FOCUS_THRESHOLD = 0.3
 
+  // DSR marksman target lock: hit same zombie 2× in a row → 3rd hit ×2 dmg
+  dsrComboTarget: object | null = null
+  dsrComboCount = 0
+  dsrComboBonus = false
+
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
   private activeSlotIndex = 0
@@ -408,6 +413,12 @@ export class Player {
       base = Math.floor(base * 1.15)
     }
 
+    // DSR target lock: every 3rd consecutive hit on same target deals ×2 damage
+    if (this.currentWeapon.id === 'rifle_dsr' && this.dsrComboBonus) {
+      base *= 2
+      this.dsrComboBonus = false
+    }
+
     const crit = Math.random() < this.stats.critChance
     return crit ? Math.floor(base * 2) : base
   }
@@ -453,6 +464,21 @@ export class Player {
     if (!this.executionerEnabled) return
     this.executionerReady = true
     this.executionerTimer = 2
+  }
+
+  // DSR target lock: track consecutive hits on same zombie; every 3rd hit deals ×2 dmg
+  onDsrHit(target: object): void {
+    if (target === this.dsrComboTarget) {
+      this.dsrComboCount++
+      if (this.dsrComboCount >= 3) {
+        this.dsrComboBonus = true
+        this.dsrComboCount = 0
+      }
+    } else {
+      this.dsrComboTarget = target
+      this.dsrComboCount = 1
+      this.dsrComboBonus = false
+    }
   }
 
   // Called when player kills a zombie
