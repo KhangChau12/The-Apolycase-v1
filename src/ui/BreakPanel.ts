@@ -259,7 +259,14 @@ export class BreakPanel {
                 <div style="color:${T.iron};font:10px ${T.font};margin-top:2px;letter-spacing:0.5px;">
                   ${isDuringWave
                     ? 'Mid-wave · Esc or U to close'
-                    : `Next wave in <span id="bp-timer" style="color:${T.amber};font-weight:bold;">${Math.ceil(g.waveManager.breakTimeLeft)}</span>s`
+                    : (() => {
+                        const nextWave = g.waveManager.waveIndex + 1
+                        const nextIsBoss = nextWave % g.waveManager.bossEvery === 0
+                        const waveLabel = nextIsBoss
+                          ? `<span style="color:${T.blood};font-weight:bold;">WAVE ${nextWave} — BOSS</span>`
+                          : `<span style="color:${T.amber};font-weight:bold;">WAVE ${nextWave}</span>`
+                        return `${waveLabel} &nbsp;·&nbsp; starts in <span id="bp-timer" style="color:${T.amber};font-weight:bold;">${Math.ceil(g.waveManager.breakTimeLeft)}</span>s`
+                      })()
                   }
                 </div>
               </div>
