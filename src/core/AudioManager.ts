@@ -296,4 +296,36 @@ export class AudioManager {
       this.osc(120, 60, 0.12, 0.25, t, 'sawtooth')
     } catch { }
   }
+
+  playFirebolt(): void {
+    if (this.guard()) return
+    try {
+      const t = this.now()
+      // Whoosh + crackle: highpass noise + descending osc
+      this.highpass(2000, 0.15, 0.5, t)
+      this.osc(440, 180, 0.18, 0.3, t, 'sawtooth')
+    } catch { }
+  }
+
+  playArcDischarge(): void {
+    if (this.guard()) return
+    try {
+      const t = this.now()
+      // Electric zap: highpass burst + highpitched descending osc
+      this.highpass(3000, 0.12, 0.6, t)
+      this.osc(800, 200, 0.22, 0.25, t, 'square')
+      this.bandpass(1200, 3, 0.08, 0.4, t + 0.05)
+    } catch { }
+  }
+
+  playMortarBarrage(): void {
+    if (this.guard()) return
+    try {
+      const t = this.now()
+      // Short whistle then boom
+      this.osc(1200, 600, 0.1, 0.12, t)
+      this.lowpass(250, 0.2, 1.8, t + 0.1)
+      this.osc(55, 20, 0.25, 0.4, t + 0.1)
+    } catch { }
+  }
 }

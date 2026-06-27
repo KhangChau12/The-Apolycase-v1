@@ -675,6 +675,7 @@ export class Game {
         const fb = new Bullet(BASE_X, BASE_Y, angle, 200, 40, 'tower')
         fb.isFireball = true; fb.isBurning = true; fb.burnDps = 6; fb.radius = 14
         this.bullets.push(fb)
+        this.audio.playFirebolt()
       }
     }
 
@@ -691,6 +692,7 @@ export class Game {
           if (!z.alive) this.onZombieDead(z)
         }
         this.effects.spawnLightningChain(chainPoints)
+        this.audio.playArcDischarge()
       }
     }
 
@@ -708,6 +710,7 @@ export class Game {
         }
         this.effects.spawnRadialBurst(t.x, t.y)
         this.shake(1.5, 0.1)
+        this.audio.playMortarBarrage()
       }
     }
 
