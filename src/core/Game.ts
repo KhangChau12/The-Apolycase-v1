@@ -445,6 +445,14 @@ export class Game {
     // Shake camera when base takes significant damage this frame
     const baseHpDelta = baseHpBefore - this.base.hp
     if (baseHpDelta > 5) this.shake(Math.min(3, baseHpDelta * 0.06), 0.18)
+    // Healer zombie heal VFX: spawn green particles at heal target every 0.3s
+    for (const z of this.zombies) {
+      if (z.archetype !== "healer" || !z.healTarget || !z.healTarget.alive) continue
+      if (z.healVisualTimer >= 0.3) {
+        z.healVisualTimer = 0
+        this.effects.spawnHealParticles(z.healTarget.x, z.healTarget.y)
+      }
+    }
 
     // bullet â†" zombie collision
     for (const b of this.bullets) {

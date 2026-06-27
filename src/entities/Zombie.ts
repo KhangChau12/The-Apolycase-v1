@@ -49,6 +49,7 @@ export class Zombie {
   slowFactor = 0        // fraction of speed reduction (0 = none, 0.6 = 60% slower); reset each frame by HomeBase
   stunTimer = 0         // seconds remaining stunned
   healTarget: Zombie | null = null   // healer archetype: current ally being healed
+  healVisualTimer = 0  // counts up while healing; Game.ts spawns green particles every ~0.3s
 
   // Aggro state — determines whether zombie chases player or marches to base
   aggroTarget: 'base' | 'player' = 'base'
@@ -214,6 +215,7 @@ export class Zombie {
       } else {
         // Heal the ally
         woundedAlly.hp = Math.min(woundedAlly.maxHp, woundedAlly.hp + 8 * dt)
+        this.healVisualTimer += dt
         return false
       }
     }
