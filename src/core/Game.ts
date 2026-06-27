@@ -450,6 +450,13 @@ export class Game {
     // Shake camera when base takes significant damage this frame
     const baseHpDelta = baseHpBefore - this.base.hp
     if (baseHpDelta > 5) this.shake(Math.min(3, baseHpDelta * 0.06), 0.18)
+    // Pre-impact rumble for boss wind-up near player
+    for (const z of this.zombies) {
+      if (z.archetype === 'boss' && z.windupActive) {
+        const wp = 1 - (z.windupTimer / (z.windupMax || 0.4))
+        if (wp > 0.7) this.shake(wp * 1.8, 0.05)
+      }
+    }
     // Healer zombie heal VFX: spawn green particles at heal target every 0.3s
     for (const z of this.zombies) {
       if (z.archetype !== "healer" || !z.healTarget || !z.healTarget.alive) continue
@@ -1685,17 +1692,26 @@ export class Game {
 
       // Boss wind-up telegraph: expanding danger ring when winding up to strike
       if (z.windupActive && windupPct > 0.1) {
-        const ringR = z.radius * (1 + windupPct * 0.7)
+        const isBoss = z.archetype === 'boss'
+        const ringR = z.radius * (1 + windupPct * (isBoss ? 1.4 : 0.7))
         const alpha = windupPct * 0.75
         ctx.save()
         ctx.globalAlpha = alpha
         ctx.strokeStyle = T.blood
-        ctx.lineWidth = 2.5 - windupPct
+        ctx.lineWidth = isBoss ? (3 + windupPct * 2) : (2.5 - windupPct)
         ctx.shadowColor = T.blood
-        ctx.shadowBlur = 10
+        ctx.shadowBlur = isBoss ? 22 : 10
         ctx.beginPath()
         ctx.arc(0, 0, ringR, 0, Math.PI * 2)
         ctx.stroke()
+        if (isBoss && windupPct > 0.6) {
+          // Second outer ring for boss
+          ctx.globalAlpha = alpha * 0.4
+          ctx.lineWidth = 1.5
+          ctx.beginPath()
+          ctx.arc(0, 0, ringR * 1.3, 0, Math.PI * 2)
+          ctx.stroke()
+        }
         ctx.shadowBlur = 0
         ctx.restore()
       }
