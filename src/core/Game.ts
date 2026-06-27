@@ -345,6 +345,13 @@ export class Game {
         localStorage.setItem('sfx_enabled', next ? '1' : '0')
         this.hud.showMessage(next ? 'Sound ON' : 'Sound OFF', next ? T.amber : T.iron, 1200)
       }
+      if (e.code === 'KeyF') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {})
+        } else {
+          document.exitFullscreen().catch(() => {})
+        }
+      }
     })
   }
 
