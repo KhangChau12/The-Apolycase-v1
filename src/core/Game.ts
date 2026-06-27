@@ -1685,6 +1685,38 @@ export class Game {
         ctx.globalAlpha = 1
       }
 
+      // Burn visual — orange glow ring + flame wisps when zombie is burning
+      if (z.burnTimer > 0) {
+        const burnFraction = Math.min(z.burnTimer / 3, 1)
+        const flicker = 0.75 + 0.25 * Math.sin(Date.now() / 60 + z.x)
+        ctx.globalAlpha = 0.55 * burnFraction * flicker
+        ctx.strokeStyle = '#FF6820'
+        ctx.lineWidth = 2.5
+        ctx.shadowColor = '#FF4400'
+        ctx.shadowBlur = 14
+        ctx.beginPath()
+        ctx.arc(0, 0, z.radius + 3, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        // small flame wisps above zombie
+        const now = Date.now()
+        ctx.fillStyle = '#FF8820'
+        ctx.shadowColor = '#FF6600'
+        ctx.shadowBlur = 6
+        for (let i = 0; i < 3; i++) {
+          const wave = Math.sin(now / 80 + i * 2.1) * 4
+          const wispX = (i - 1) * 6 + wave
+          const wispY = -z.radius - 6 - Math.abs(Math.sin(now / 100 + i)) * 5
+          const wispR = 2.5 + Math.abs(Math.sin(now / 90 + i * 1.7)) * 1.5
+          ctx.globalAlpha = 0.7 * burnFraction * flicker
+          ctx.beginPath()
+          ctx.arc(wispX, wispY, wispR, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+      }
+
       // BOSS label badge
       if (z.archetype === 'boss') {
         const by = -z.radius - 22
