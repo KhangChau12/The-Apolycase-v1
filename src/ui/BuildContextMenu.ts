@@ -51,10 +51,13 @@ export class BuildContextMenu {
                 color:${blocked ? '#5a4a3a' : T.bg};
                 font:11px ${T.font};padding:7px 10px;border-radius:2px;
                 cursor:${blocked ? 'not-allowed' : 'pointer'};
-                text-align:left;display:flex;justify-content:space-between;align-items:center;
+                text-align:left;display:flex;flex-direction:column;gap:2px;
               ">
-              <span style="color:${blocked ? '#5a4a3a' : T.amber};">${tp.label}</span>
-              <span style="color:${T.iron};font-size:10px;">⬡${tp.costIron}${tp.costCore > 0 ? ` ◈${tp.costCore}` : ''}</span>
+              <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+                <span style="color:${blocked ? '#5a4a3a' : T.amber};">${tp.label}</span>
+                <span style="color:${T.iron};font-size:10px;">⬡${tp.costIron}${tp.costCore > 0 ? ` ◈${tp.costCore}` : ''}</span>
+              </div>
+              <div style="color:${blocked ? '#3a2a1a' : T.iron};font:9px ${T.font};line-height:1.3;white-space:normal;text-align:left;">${tp.description}</div>
             </button>
           `
         }).join('')}
