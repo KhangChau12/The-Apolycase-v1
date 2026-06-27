@@ -727,6 +727,7 @@ export class Game {
     rawDrops.energyCore = Math.round(rawDrops.energyCore * dropMult)
     this.drops.push(new DropItem(z.x, z.y, rawDrops))
     this.effects.spawnBloodSplatter(z.x, z.y, killAngle, z.archetype)
+    this.effects.spawnBloodPool(z.x, z.y, z.archetype)
     this.audio.playZombieDead(z.archetype)
     this.player.addXp(z.xpReward, () => {
       this.hud.triggerLevelUp()

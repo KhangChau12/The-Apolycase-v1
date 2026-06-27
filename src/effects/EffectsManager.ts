@@ -36,6 +36,14 @@ interface SlashEffect {
   impactY: number
 }
 
+interface GroundDecal {
+  x: number; y: number
+  radius: number
+  color: string
+  life: number
+  maxLife: number
+}
+
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
   return t * t * (3 - 2 * t)
@@ -45,6 +53,7 @@ export class EffectsManager {
   private particles: Particle[] = []
   private lightnings: LightningEffect[] = []
   private slashes: SlashEffect[] = []
+  private decals: GroundDecal[] = []
   private screenFlashAlpha = 0
   private screenFlashColor = '204,26,26'
 
@@ -56,10 +65,27 @@ export class EffectsManager {
     this.lightnings = this.lightnings.filter(l => l.life > 0)
     for (const s of this.slashes) s.life -= dt
     this.slashes = this.slashes.filter(s => s.life > 0)
+    for (const d of this.decals) d.life -= dt
+    this.decals = this.decals.filter(d => d.life > 0)
+    if (this.decals.length > 80) this.decals.splice(0, 10)
     if (this.screenFlashAlpha > 0) this.screenFlashAlpha = Math.max(0, this.screenFlashAlpha - dt * 1.8)
   }
 
   renderWorld(ctx: CanvasRenderingContext2D): void {
+    // Ground decals drawn first (under everything)
+    for (const d of this.decals) {
+      const t = d.life / d.maxLife
+      // Fade in over 10% then hold; fade out over last 40%
+      const alpha = t > 0.9 ? (1 - t) / 0.1 : t < 0.4 ? t / 0.4 : 1
+      ctx.save()
+      ctx.globalAlpha = alpha * 0.55
+      ctx.fillStyle = d.color
+      ctx.beginPath()
+      ctx.ellipse(d.x, d.y, d.radius, d.radius * 0.55, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+
     for (const p of this.particles) {
       ctx.save()
       ctx.globalAlpha = p.alpha
@@ -308,6 +334,24 @@ export class EffectsManager {
         life: 1.2 + Math.random() * 1.4,
       }))
     }
+  }
+
+  spawnBloodPool(x: number, y: number, archetype: ZombieArchetype): void {
+    const radiusMap: Record<ZombieArchetype, number> = {
+      regular: 10, fast: 7, tank: 16, armored: 14, boss: 28, healer: 8, spitter: 10,
+    }
+    const colorMap: Record<ZombieArchetype, string> = {
+      regular: '#550000', fast: '#440000', tank: '#660000', armored: '#442200',
+      boss: '#880000', healer: '#003322', spitter: '#224400',
+    }
+    this.decals.push({
+      x: x + (Math.random() - 0.5) * 6,
+      y: y + (Math.random() - 0.5) * 6,
+      radius: radiusMap[archetype] * (0.8 + Math.random() * 0.4),
+      color: colorMap[archetype],
+      life: 8 + Math.random() * 4,
+      maxLife: 10,
+    })
   }
 
   spawnFireTrail(x: number, y: number, angle: number): void {
