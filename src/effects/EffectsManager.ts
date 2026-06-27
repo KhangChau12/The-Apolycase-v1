@@ -1,7 +1,7 @@
 import { Particle } from './Particle'
 import { T } from '../ui/theme'
 
-type ZombieArchetype = 'regular' | 'fast' | 'tank' | 'armored' | 'boss'
+type ZombieArchetype = 'regular' | 'fast' | 'tank' | 'armored' | 'boss' | 'healer' | 'spitter'
 
 interface LightningSegment { ax: number; ay: number; bx: number; by: number }
 
@@ -243,7 +243,7 @@ export class EffectsManager {
 
   spawnBloodSplatter(x: number, y: number, killAngle: number, archetype: ZombieArchetype): void {
     const counts: Record<ZombieArchetype, number> = {
-      regular: 12, fast: 8, tank: 20, armored: 14, boss: 40,
+      regular: 12, fast: 8, tank: 20, armored: 14, boss: 40, healer: 8, spitter: 10,
     }
     const count = counts[archetype] ?? 12
     for (let i = 0; i < count; i++) {
@@ -443,6 +443,32 @@ export class EffectsManager {
       const [rx2, ry2] = offset(x, y, fromAngle - 0.78,  20)
       strokes.push(crack(rx1, ry1, rx2, ry2, '#88BBFF', 1.4, 0.06))
 
+    } else if (archetype === 'healer') {
+      // 2 thin scratch marks + small pulse indicator
+      const lineLen    = 20
+      const fwdOffsets = [-6, 6]
+      const widths     = [1.6, 1.6]
+      for (let i = 0; i < 2; i++) {
+        const ox = Math.cos(fromAngle) * fwdOffsets[i]
+        const oy = Math.sin(fromAngle) * fwdOffsets[i]
+        const [sx, sy] = offset(x + ox, y + oy, perp, -lineLen / 2)
+        const [ex, ey] = offset(x + ox, y + oy, perp,  lineLen / 2)
+        strokes.push(crack(sx, sy, ex, ey, '#88FFAA', widths[i], i * 0.06))
+      }
+
+    } else if (archetype === 'spitter') {
+      // Single fat spit mark + two side drips
+      const [sx, sy] = offset(x, y, perp, -14)
+      const [ex, ey] = offset(x, y, perp,  14)
+      strokes.push(crack(sx, sy, ex, ey, '#88FF44', 2.2, 0))
+      // Side drips angled outward
+      for (const sign of [-1, 1] as const) {
+        const a = perp + sign * 0.4
+        const [dx1, dy1] = [x + Math.cos(a) * 4, y + Math.sin(a) * 4]
+        const [dx2, dy2] = [x + Math.cos(a) * 16, y + Math.sin(a) * 16]
+        strokes.push(crack(dx1, dy1, dx2, dy2, '#66CC33', 1.4, 0.05))
+      }
+
     } else {
       // boss: 5 wide marks along perp, spaced 8px, plus X cross
       const lineLen    = 46
@@ -473,6 +499,8 @@ export class EffectsManager {
       tank:    { flashR: 22, flashC: '#FF8866', sparkN: 5,  sparkC: '#CC3300', spd: [40,90],   slife: [0.16,0.26], glowC: '#660000', life: 0.32 },
       armored: { flashR: 16, flashC: '#DDEEFF', sparkN: 10, sparkC: '#88CCFF', spd: [80,200],  slife: [0.08,0.14], glowC: '#5599FF', life: 0.20 },
       boss:    { flashR: 36, flashC: '#FFAADD', sparkN: 14, sparkC: '#FF88CC', spd: [60,160],  slife: [0.14,0.22], glowC: '#880044', life: 0.38 },
+      healer:  { flashR: 10, flashC: '#AAFFCC', sparkN: 4,  sparkC: '#44FF88', spd: [40,90],   slife: [0.10,0.16], glowC: '#00AA44', life: 0.18 },
+      spitter: { flashR: 12, flashC: '#CCFF88', sparkN: 5,  sparkC: '#88FF44', spd: [50,110],  slife: [0.09,0.15], glowC: '#448800', life: 0.15 },
     }
     const sc = scfg[archetype]
 
@@ -554,6 +582,21 @@ export class EffectsManager {
         gravity: -8,
         sizeDecay: 5,
         life: 0.5 + Math.random() * 0.3,
+      }))
+    }
+  }
+
+  spawnFrostPulse(x: number, y: number, _radius: number): void {
+    const count = 20
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2
+      const speed = 60 + Math.random() * 40
+      this.particles.push(new Particle(x, y, '#88EEFF', 2 + Math.random() * 2, speed, {
+        dirAngle: angle,
+        spread: 0.12,
+        gravity: 0,
+        sizeDecay: 5,
+        life: 0.35 + Math.random() * 0.2,
       }))
     }
   }

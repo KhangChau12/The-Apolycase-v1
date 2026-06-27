@@ -28,6 +28,12 @@ export class Bullet {
   armorPiercing = false    // ignore 50% armor on armored/boss (AP Rounds)
   splashFraction = 0.5     // AoE splash damage fraction (Hellfire Core / bulletExplosion)
   splashRadius = 60        // AoE splash radius
+  hitsBase = false         // spitter acid blobs — check against base in Game collision loop
+  isPoisoned = false       // poison tower bullets — apply poison DOT on hit
+  poisonDps = 0
+  poisonDuration = 0
+  canRicochet = false      // ricochetRounds skill — bounce once on expiry
+  hasRichocheted = false   // prevents infinite bounce chain
 
   constructor(x: number, y: number, angle: number, speed: number, damage: number, owner: BulletOwner) {
     this.x = x

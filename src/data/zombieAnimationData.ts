@@ -28,6 +28,8 @@ export const WINDUP_DURATIONS: Record<ZombieArchetype, number> = {
   tank:    0.40,
   armored: 0.30,
   boss:    0.40,
+  healer:  0.25,
+  spitter: 0.30,
 }
 
 // ── Combo damage multipliers [comboCounter 0,1,2] ────────────────────────────
@@ -42,6 +44,8 @@ export const COMBO_PATTERNS: Record<ZombieArchetype, string[]> = {
   tank:    ['ground_slam', 'shoulder', 'heavy_strike'],
   armored: ['energy_blast', 'pulse', 'multi_hit'],
   boss:    ['stomp', 'claw', 'claw', 'energy_aoe'],
+  healer:  ['scratch', 'scratch', 'pulse'],
+  spitter: ['spit', 'spit', 'acid_burst'],
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -241,6 +245,82 @@ export const ANIMATION_CLIPS: Record<ZombieArchetype, Record<AnimationState, Ani
       frames: [
         mk(0.06, 1.20, 0.85, 0.04,  0.80,  0.80, 0, 0),
         mk(0.15, 1.00, 1.00, 0,     0.12,  0.12, 0, 0),
+      ],
+    },
+    stun: {
+      loopable: true,
+      frames: [ { ...ZERO_FRAME, duration: 1.0 } ],
+    },
+  },
+
+  // ── HEALER ───────────────────────────────────────────────────────────────
+  healer: {
+    idle: {
+      loopable: true,
+      frames: [
+        mk(0.6, 1.00, 1.00,  0,    0.08, -0.08, 0, 0),
+        mk(0.6, 0.99, 1.01, -0.01,-0.08,  0.08, 0, 0),
+      ],
+    },
+    walk: {
+      loopable: true,
+      frames: [
+        mk(0.22, 1.00, 1.00,  0,    0.30, -0.20,  2, -2),
+        mk(0.22, 0.98, 1.02,  0.01, 0.08,  0.08,  0,  0),
+        mk(0.22, 1.00, 1.00,  0,   -0.20,  0.30, -2,  2),
+        mk(0.22, 0.98, 1.02,  0.01, 0.08,  0.08,  0,  0),
+      ],
+    },
+    windup: {
+      loopable: false,
+      frames: [
+        mk(0.18, 0.88, 1.08, -0.02, -0.35, -0.35, 0, 0),
+      ],
+    },
+    attack: {
+      loopable: false,
+      frames: [
+        mk(0.06, 1.10, 0.94, 0.02,  0.55,  0.55, 0, 0),
+        mk(0.12, 1.00, 1.00, 0,     0.10,  0.10, 0, 0),
+      ],
+    },
+    stun: {
+      loopable: true,
+      frames: [ { ...ZERO_FRAME, duration: 1.0 } ],
+    },
+  },
+
+  // ── SPITTER ──────────────────────────────────────────────────────────────
+  spitter: {
+    idle: {
+      loopable: true,
+      frames: [
+        mk(0.5, 1.00, 1.00,  0,    0.06, -0.06, 0, 0),
+        mk(0.5, 1.02, 0.98, -0.01,-0.06,  0.06, 0, 0),
+      ],
+    },
+    walk: {
+      loopable: true,
+      frames: [
+        mk(0.18, 1.00, 1.02,  0.01,  0.40, -0.28,  3, -3),
+        mk(0.18, 0.97, 1.03,  0,     0.12,  0.12,  1,  1),
+        mk(0.18, 1.00, 1.02,  0.01,  0.08, -0.08,  0,  0),
+        mk(0.18, 0.97, 1.03,  0,    -0.28,  0.40, -3,  3),
+        mk(0.18, 1.00, 1.02,  0.01, -0.08,  0.08,  0,  0),
+        mk(0.18, 0.97, 1.03,  0,     0.12,  0.12,  1,  1),
+      ],
+    },
+    windup: {
+      loopable: false,
+      frames: [
+        mk(0.22, 0.80, 1.20, -0.03, -0.45, -0.45, 0, 0),
+      ],
+    },
+    attack: {
+      loopable: false,
+      frames: [
+        mk(0.05, 1.25, 0.82, 0.03,  0.75,  0.75, 0, 0),
+        mk(0.12, 1.00, 1.00, 0,     0.12,  0.12, 0, 0),
       ],
     },
     stun: {

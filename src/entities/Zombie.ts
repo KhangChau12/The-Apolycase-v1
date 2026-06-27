@@ -5,7 +5,7 @@ import {
   type AnimationState, type AnimationFrame,
 } from '../data/zombieAnimationData'
 
-export type ZombieArchetype = 'regular' | 'fast' | 'tank' | 'armored' | 'boss'
+export type ZombieArchetype = 'regular' | 'fast' | 'tank' | 'armored' | 'boss' | 'healer' | 'spitter'
 
 export interface ZombieDrops {
   iron: number
@@ -17,9 +17,14 @@ export interface ZombieDrops {
 
 interface BaseTarget { x: number; y: number; takeDamage(n: number): void }
 interface TowerTarget { x: number; y: number; hp: number; alive: boolean; takeDamage(n: number): void }
+interface PlayerTarget { x: number; y: number; takeDamage(n: number): void }
+
 interface GameRef {
   shake(i: number, d: number): void
   spawnZombieSlash(x: number, y: number, fromAngle: number, archetype: ZombieArchetype): void
+  zombies: readonly Zombie[]
+  spawnAcidBlob(x: number, y: number, angle: number, damage: number): void
+  player?: PlayerTarget
 }
 
 export class Zombie {
@@ -38,8 +43,16 @@ export class Zombie {
   angle = 0          // movement direction in radians, used for polygon rotation
   burnTimer = 0
   burnDps = 0
+  poisonTimer = 0
+  poisonDps = 0
+  poisonStacks = 0
   slowFactor = 0        // fraction of speed reduction (0 = none, 0.6 = 60% slower); reset each frame by HomeBase
   stunTimer = 0         // seconds remaining stunned
+  healTarget: Zombie | null = null   // healer archetype: current ally being healed
+
+  // Aggro state — determines whether zombie chases player or marches to base
+  aggroTarget: 'base' | 'player' = 'base'
+  aggroTimer = 0        // seconds remaining in hit-aggro; resets aggroTarget when elapsed + player far
 
   // Visual-only state — read by renderer, no game logic impact
   attackFlashTimer = 0  // red slash effect when attacking (0.12s)
@@ -80,11 +93,11 @@ export class Zombie {
     this.maxHp = this.hp
     this.speed = t.baseSpeed * (0.9 + Math.random() * 0.2) * (1 + tierScale.speedPerTier * this.tier)
     this.damage = Math.floor(t.baseDamage * waveMult * (1 + tierScale.damagePerTier * this.tier))
-    const baseRadius = archetype === 'boss' ? 32 : archetype === 'tank' ? 22 : 14
+    const baseRadius = archetype === 'boss' ? 32 : archetype === 'tank' ? 22 : archetype === 'healer' ? 14 : archetype === 'spitter' ? 13 : 14
     this.radius = baseRadius * (1 + tierScale.sizePerTier * this.tier)
-    this.attackRange = this.radius + 40
-    this.attackRate = archetype === 'boss' ? 0.8 : archetype === 'tank' ? 1.2 : 1.5
-    const baseXp = archetype === 'boss' ? 200 : archetype === 'tank' ? 40 : archetype === 'armored' ? 30 : 15
+    this.attackRange = archetype === 'spitter' ? 250 : this.radius + 40
+    this.attackRate = archetype === 'boss' ? 0.8 : archetype === 'tank' ? 1.2 : archetype === 'healer' ? 1.2 : archetype === 'spitter' ? 0.7 : 1.5
+    const baseXp = archetype === 'boss' ? 200 : archetype === 'tank' ? 50 : archetype === 'armored' ? 38 : archetype === 'healer' ? 30 : archetype === 'spitter' ? 28 : archetype === 'fast' ? 22 : 18
     this.xpReward = Math.floor(baseXp * (1 + tierScale.xpPerTier * this.tier))
     const armoredBaseReduction = archetype === 'armored' ? 0.5 : 0
     this.damageReduction = Math.min(0.85, armoredBaseReduction + tierScale.armorBonusPerTier * this.tier)
@@ -98,6 +111,14 @@ export class Zombie {
     if (this.attackFlashTimer > 0) this.attackFlashTimer -= dt
     if (this.attackAnimTimer  > 0) this.attackAnimTimer  -= dt
     if (this.hitRecoilTimer   > 0) this.hitRecoilTimer   -= dt
+
+    // Poison DOT tick (burn is handled by Game.ts DOT loop)
+    if (this.poisonTimer > 0) {
+      this.poisonTimer -= dt
+      this.hp -= this.poisonDps * dt
+      if (this.hp <= 0) { this.alive = false; return }
+      if (this.poisonTimer <= 0) { this.poisonStacks = 0; this.poisonDps = 0 }
+    }
 
     // Stun — skip movement and attacks while stunned
     if (this.stunTimer > 0) {
@@ -113,21 +134,53 @@ export class Zombie {
     // Advance attack cooldown
     if (this.attackCooldown > 0) this.attackCooldown -= dt
 
-    // Find nearest tower in path or attack base if close
-    const nearTower = this.findNearestTower(towers)
-    const distToBase = dist(this.x, this.y, base.x, base.y)
-
     let moving = false
 
+    // ── HEALER: prioritize healing nearby wounded allies ──────────────
+    if (this.archetype === 'healer') {
+      moving = this.updateHealer(dt, base, towers, game, effectiveSpeed)
+      this.updateAnimation(dt, moving)
+      return
+    }
+
+    // ── SPITTER: ranged attack, maintain distance ─────────────────────
+    if (this.archetype === 'spitter') {
+      moving = this.updateSpitter(dt, base, towers, game, effectiveSpeed)
+      this.updateAnimation(dt, moving)
+      return
+    }
+
+    // Aggro countdown (hit-reaction timer)
+    if (this.aggroTimer > 0) {
+      this.aggroTimer -= dt
+      this.aggroTarget = 'player'
+    }
+
+    const nearTower = this.findNearestTower(towers)
+    const distToBase = dist(this.x, this.y, base.x, base.y)
+    const playerDist = game.player ? dist(this.x, this.y, game.player.x, game.player.y) : Infinity
+
+    // Proximity aggro: player steps within 120px → chase
+    if (game.player && playerDist < 120) this.aggroTarget = 'player'
+
+    // Leash: player fled beyond 200px and hit-timer expired → back to base
+    if (this.aggroTarget === 'player' && playerDist > 200 && this.aggroTimer <= 0) {
+      this.aggroTarget = 'base'
+    }
+
+    // Tower always takes priority over player/base
     if (nearTower && dist(this.x, this.y, nearTower.x, nearTower.y) < this.attackRange + 20) {
       this.handleAttack(dt, nearTower, game)
-    } else if (distToBase < this.attackRange) {
+    } else if (this.aggroTarget === 'player' && game.player && playerDist < this.attackRange + 20) {
+      this.handleAttack(dt, game.player, game)
+    } else if (this.aggroTarget === 'base' && distToBase < this.attackRange) {
       this.handleAttack(dt, base, game)
     } else {
-      const target = nearTower && dist(this.x, this.y, nearTower.x, nearTower.y) < 120
-        ? nearTower
-        : base
-      this.angle = angleTo(this.x, this.y, target.x, target.y)
+      // Move: chase player if aggroed, otherwise head to nearest tower / base
+      const moveTarget = this.aggroTarget === 'player' && game.player
+        ? game.player
+        : (nearTower && dist(this.x, this.y, nearTower.x, nearTower.y) < 120 ? nearTower : base)
+      this.angle = angleTo(this.x, this.y, moveTarget.x, moveTarget.y)
       this.x += Math.cos(this.angle) * effectiveSpeed * dt
       this.y += Math.sin(this.angle) * effectiveSpeed * dt
       this.wobbleTimer += dt
@@ -137,7 +190,116 @@ export class Zombie {
     this.updateAnimation(dt, moving)
   }
 
-  private handleAttack(dt: number, target: BaseTarget | TowerTarget, game: GameRef): void {
+  private updateHealer(dt: number, base: BaseTarget, towers: TowerTarget[], game: GameRef, speed: number): boolean {
+    // Find nearest wounded ally (hp < 70% maxHp) within 200px
+    let woundedAlly: Zombie | null = null
+    let woundedDist = 200
+    for (const z of game.zombies) {
+      if (z === this || !z.alive || z.archetype === 'healer') continue
+      if (z.hp >= z.maxHp * 0.7) continue
+      const d = dist(this.x, this.y, z.x, z.y)
+      if (d < woundedDist) { woundedDist = d; woundedAlly = z }
+    }
+
+    if (woundedAlly) {
+      this.healTarget = woundedAlly
+      const d = dist(this.x, this.y, woundedAlly.x, woundedAlly.y)
+      if (d > this.radius + 30) {
+        // Move toward ally
+        this.angle = angleTo(this.x, this.y, woundedAlly.x, woundedAlly.y)
+        this.x += Math.cos(this.angle) * speed * dt
+        this.y += Math.sin(this.angle) * speed * dt
+        this.wobbleTimer += dt
+        return true
+      } else {
+        // Heal the ally
+        woundedAlly.hp = Math.min(woundedAlly.maxHp, woundedAlly.hp + 8 * dt)
+        return false
+      }
+    }
+
+    // No wounded ally — fall back to aggro-aware base-chase
+    this.healTarget = null
+
+    if (this.aggroTimer > 0) {
+      this.aggroTimer -= dt
+      this.aggroTarget = 'player'
+    }
+
+    const nearTower = this.findNearestTower(towers)
+    const distToBase = dist(this.x, this.y, base.x, base.y)
+    const playerDist = game.player ? dist(this.x, this.y, game.player.x, game.player.y) : Infinity
+
+    if (game.player && playerDist < 120) this.aggroTarget = 'player'
+    if (this.aggroTarget === 'player' && playerDist > 200 && this.aggroTimer <= 0) {
+      this.aggroTarget = 'base'
+    }
+
+    if (nearTower && dist(this.x, this.y, nearTower.x, nearTower.y) < this.attackRange + 20) {
+      this.handleAttack(dt, nearTower, game)
+      return false
+    } else if (this.aggroTarget === 'player' && game.player && playerDist < this.attackRange + 20) {
+      this.handleAttack(dt, game.player, game)
+      return false
+    } else if (this.aggroTarget === 'base' && distToBase < this.attackRange) {
+      this.handleAttack(dt, base, game)
+      return false
+    } else {
+      const moveTarget = this.aggroTarget === 'player' && game.player
+        ? game.player
+        : (nearTower && dist(this.x, this.y, nearTower.x, nearTower.y) < 120 ? nearTower : base)
+      this.angle = angleTo(this.x, this.y, moveTarget.x, moveTarget.y)
+      this.x += Math.cos(this.angle) * speed * dt
+      this.y += Math.sin(this.angle) * speed * dt
+      this.wobbleTimer += dt
+      return true
+    }
+  }
+
+  private updateSpitter(dt: number, base: BaseTarget, towers: TowerTarget[], game: GameRef, speed: number): boolean {
+    const preferredRange = 180
+    const distToBase = dist(this.x, this.y, base.x, base.y)
+
+    // Back away if too close
+    if (distToBase < preferredRange) {
+      this.angle = angleTo(this.x, this.y, base.x, base.y) + Math.PI
+      this.x += Math.cos(this.angle) * speed * dt
+      this.y += Math.sin(this.angle) * speed * dt
+      this.wobbleTimer += dt
+      return true
+    }
+
+    // Ranged attack if within range
+    if (distToBase <= this.attackRange) {
+      if (this.attackCooldown <= 0 && !this.windupActive) {
+        this.windupActive = true
+        this.windupTimer = this.windupMax
+      }
+      if (this.windupActive) {
+        this.windupTimer -= dt
+        if (this.windupTimer <= 0) {
+          this.windupActive = false
+          const aimAngle = angleTo(this.x, this.y, base.x, base.y)
+          game.spawnAcidBlob(this.x, this.y, aimAngle, this.damage)
+          this.attackCooldown = 1 / this.attackRate
+          this.attackFlashTimer = 0.12
+          this.attackAnimTimer = 0.30
+          game.spawnZombieSlash(base.x, base.y, aimAngle, this.archetype)
+        }
+      }
+      return false
+    }
+
+    // Move toward optimal range
+    this.angle = angleTo(this.x, this.y, base.x, base.y)
+    this.x += Math.cos(this.angle) * speed * dt
+    this.y += Math.sin(this.angle) * speed * dt
+    this.wobbleTimer += dt
+    void towers
+    return true
+  }
+
+  private handleAttack(dt: number, target: BaseTarget | TowerTarget | PlayerTarget, game: GameRef): void {
     // Phase 1: start wind-up when cooldown expired
     if (this.attackCooldown <= 0 && !this.windupActive) {
       this.windupActive = true
@@ -201,6 +363,11 @@ export class Zombie {
 
   stun(duration: number): void {
     this.stunTimer = Math.max(this.stunTimer, duration)
+  }
+
+  aggroHit(duration = 4): void {
+    this.aggroTimer = Math.max(this.aggroTimer, duration)
+    this.aggroTarget = 'player'
   }
 
   private findNearestTower(towers: TowerTarget[]): TowerTarget | null {

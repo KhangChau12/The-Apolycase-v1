@@ -476,10 +476,119 @@ function bossSkel(r: number, vTier: number): LimbSegment[] {
 
 export type SkeletonFactory = (r: number, tier: number) => LimbSegment[]
 
+// ── HEALER skeletons ──────────────────────────────────────────────────────────
+
+function healerSkel(r: number, tier: number): LimbSegment[] {
+  const gc = ['#44FF88', '#66FFAA', '#88FFCC', '#AAFFEE'][Math.min(tier, 3)]
+  const gbl = [6, 10, 14, 18][Math.min(tier, 3)]
+
+  // Heal aura ring
+  const aura = seg('aura', 'circle', 0, 0, r + 6, 0, 'transparent', 0, {
+    strokeColor: `rgba(68,255,136,0.28)`,
+    strokeWidth: 2.5,
+  })
+
+  // Outer ring for tier 1+
+  const outerRing: LimbSegment[] = []
+  if (tier >= 1) {
+    outerRing.push(seg('outer_ring', 'circle', 0, 0, r + 10, 0, 'transparent', 0, {
+      strokeColor: 'rgba(68,255,136,0.15)',
+      strokeWidth: 1.5,
+    }))
+  }
+
+  const body = seg('body', 'circle', 0, 0, r, 0, '#0a2a08', 0, {
+    strokeColor: gc,
+    strokeWidth: tier >= 2 ? 2 : 1.5,
+    glow: gc,
+    glowBlur: gbl,
+  })
+
+  const head = seg('head', 'circle', 0, -r * 0.88, r * 0.32, 0, '#1a4020', 0, {
+    strokeColor: gc, strokeWidth: 1,
+  })
+
+  // Cross symbol on body (healer mark)
+  const crossV = seg('cross_v', 'line', 0, 0, 0, r * 0.8, gc, 0, { strokeColor: gc, strokeWidth: 1.5, alpha: 0.7 })
+  const crossH = seg('cross_h', 'line', 0, 0, 0, r * 0.8, gc, Math.PI / 2, { strokeColor: gc, strokeWidth: 1.5, alpha: 0.7 })
+
+  // Arm stumps
+  const armL = seg('arm_l', 'line', -r * 0.55, -r * 0.05, 0, r * 0.55, '#1a4020', 0.45, {
+    strokeColor: gc, strokeWidth: 1.5,
+  })
+  const armR = seg('arm_r', 'line',  r * 0.55, -r * 0.05, 0, r * 0.55, '#1a4020', -0.45, {
+    strokeColor: gc, strokeWidth: 1.5,
+  })
+
+  return [...outerRing, aura, body, head, crossV, crossH, armL, armR]
+}
+
+// ── SPITTER skeletons ─────────────────────────────────────────────────────────
+
+function polyOct(r: number): [number, number][] {
+  return Array.from({ length: 8 }, (_, i) => {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 8
+    return [Math.cos(a) * r, Math.sin(a) * r] as [number, number]
+  })
+}
+
+function spitterSkel(r: number, tier: number): LimbSegment[] {
+  const gc = ['#88AA44', '#AACC55', '#CCEE66', '#EEFF88'][Math.min(tier, 3)]
+  const gbl = [4, 8, 12, 16][Math.min(tier, 3)]
+  const eyeC = tier >= 2 ? '#EEFF44' : '#AAFF44'
+
+  // Acid sac (tier 1+): glowing orb on sides
+  const sacs: LimbSegment[] = []
+  if (tier >= 1) {
+    sacs.push(
+      seg('sac_l', 'circle', -r * 0.78, 0, r * 0.26, 0, '#1a3008', 0, {
+        strokeColor: gc, strokeWidth: 1, glow: gc, glowBlur: 5, alpha: 0.6,
+      }),
+      seg('sac_r', 'circle',  r * 0.78, 0, r * 0.26, 0, '#1a3008', 0, {
+        strokeColor: gc, strokeWidth: 1, glow: gc, glowBlur: 5, alpha: 0.6,
+      }),
+    )
+  }
+
+  // Outer ring tier 2+
+  const outerRing: LimbSegment[] = []
+  if (tier >= 2) {
+    outerRing.push(seg('outer', 'polygon', 0, 0, 0, 0, 'transparent', 0, {
+      points: polyOct(r + 5), strokeColor: gc, strokeWidth: 1, alpha: 0.4,
+    }))
+  }
+
+  const body = seg('body', 'polygon', 0, 0, 0, 0, '#1a2808', 0, {
+    points: polyOct(r),
+    strokeColor: gc, strokeWidth: tier >= 3 ? 2 : 1.5,
+    glow: gc, glowBlur: gbl,
+  })
+
+  // Fang tubes projecting forward (up direction = negative y)
+  const fangL = seg('fang_l', 'line', -r * 0.22, -r * 0.65, 0, r * 0.5, gc, -0.2, {
+    strokeColor: gc, strokeWidth: 2.5,
+  })
+  const fangR = seg('fang_r', 'line',  r * 0.22, -r * 0.65, 0, r * 0.5, gc, 0.2, {
+    strokeColor: gc, strokeWidth: 2.5,
+  })
+
+  // Eyes
+  const eyeL = seg('eye_l', 'circle', -r * 0.28, -r * 0.72, r * 0.13, 0, eyeC, 0, {
+    glow: eyeC, glowBlur: tier >= 1 ? 6 : 3,
+  })
+  const eyeR = seg('eye_r', 'circle',  r * 0.28, -r * 0.72, r * 0.13, 0, eyeC, 0, {
+    glow: eyeC, glowBlur: tier >= 1 ? 6 : 3,
+  })
+
+  return [...outerRing, ...sacs, body, fangL, fangR, eyeL, eyeR]
+}
+
 export const SKELETON_FACTORIES: Record<ZombieArchetype, SkeletonFactory> = {
   regular: regularSkel,
   fast:    fastSkel,
   tank:    tankSkel,
   armored: armoredSkel,
   boss:    bossSkel,
+  healer:  healerSkel,
+  spitter: spitterSkel,
 }

@@ -78,11 +78,13 @@ function rollZombieTier(waveIndex: number, archetype: ZombieArchetype): number {
 function waveConfig(waveIndex: number, isBoss: boolean): SpawnConfig[] {
   const w = waveIndex
   const configs: SpawnConfig[] = [
-    { archetype: 'regular', count: 5 + w * 3 },
+    { archetype: 'regular', count: 5 + w * 2 },
   ]
-  if (w >= 2) configs.push({ archetype: 'fast', count: Math.floor(w * 1.5) })
+  if (w >= 2) configs.push({ archetype: 'fast', count: Math.floor(w * 2.0) })
   if (w >= 3) configs.push({ archetype: 'tank', count: Math.floor(w * 0.8) })
-  if (w >= 4) configs.push({ archetype: 'armored', count: Math.floor(w * 0.6) })
+  if (w >= 3) configs.push({ archetype: 'spitter', count: Math.floor(w * 0.6) })
+  if (w >= 4) configs.push({ archetype: 'armored', count: Math.floor(w * 0.7) })
+  if (w >= 5) configs.push({ archetype: 'healer', count: Math.floor(w * 0.5) })
   if (isBoss) configs.push({ archetype: 'boss', count: 1 })
   return configs
 }

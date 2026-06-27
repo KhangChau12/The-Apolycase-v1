@@ -6,11 +6,13 @@ import { PLAYER_SKILL_POOL } from '../data/playerSkillPool'
 interface Message { text: string; color: string; expiry: number }
 
 const WEAPON_CLASS_ABBR: Record<string, string> = {
-  pistol:       'PSTL',
-  shotgun:      'SHOT',
-  assaultRifle: 'AR',
-  smg:          'SMG',
-  sniperRifle:  'SNP',
+  pistol:          'PSTL',
+  shotgun:         'SHOT',
+  assaultRifle:    'AR',
+  smg:             'SMG',
+  sniperRifle:     'SNP',
+  grenadeLauncher: 'GL',
+  marksmanRifle:   'DMR',
 }
 
 // Slot size matches inactive weapon slot (40px)
@@ -61,6 +63,24 @@ export class HUD {
       })
     }
 
+    const muteBtn = this.el.querySelector('#hud-mute-btn') as HTMLButtonElement | null
+    if (muteBtn) {
+      const updateMuteBtn = () => {
+        const enabled = this.game.audio.isEnabled
+        muteBtn.style.color = enabled ? T.bg : T.iron
+        muteBtn.style.borderColor = enabled ? `${T.amber}88` : `${T.rust}44`
+        muteBtn.style.background = enabled ? `rgba(232,160,48,0.1)` : `rgba(44,36,22,0.5)`
+        muteBtn.title = enabled ? 'Mute sound (M)' : 'Unmute sound (M)'
+      }
+      muteBtn.addEventListener('click', () => {
+        const next = !this.game.audio.isEnabled
+        this.game.audio.setEnabled(next)
+        localStorage.setItem('sfx_enabled', next ? '1' : '0')
+        updateMuteBtn()
+      })
+      updateMuteBtn()
+    }
+
     window.addEventListener('resize', () => this.refreshLayoutMode())
     this.refreshLayoutMode()
   }
@@ -85,8 +105,9 @@ export class HUD {
     const waveSub = this.el.querySelector('#hud-wave-sub') as HTMLElement | null
     if (waveSub) waveSub.style.display = nextMode === 'ultra' ? 'none' : 'block'
 
+    // upgrades section now contains buttons — always visible
     const upgSection = this.el.querySelector('#hud-upgrades-section') as HTMLElement | null
-    if (upgSection) upgSection.style.display = nextMode === 'ultra' ? 'none' : 'flex'
+    if (upgSection) upgSection.style.display = 'flex'
   }
 
   private formatCompactNumber(n: number): string {
@@ -103,23 +124,20 @@ export class HUD {
         .hud-upg-item:hover .hud-upg-tooltip { display:block; }
 
         #hud-bottom-bar {
-          --hud-cols: minmax(168px, 190px) minmax(180px, 1fr) minmax(230px, 1.6fr) minmax(148px, 170px) minmax(168px, 210px) minmax(170px, 230px);
+          --hud-cols: minmax(168px, 190px) minmax(180px, 1fr) minmax(230px, 1.6fr) minmax(200px, 260px) minmax(150px, 210px);
           grid-template-columns: var(--hud-cols);
           overflow: visible;
         }
         #hud-bottom-bar.hud-layout-compact {
-          --hud-cols: minmax(152px, 176px) minmax(150px, 0.9fr) minmax(190px, 1.4fr) minmax(136px, 156px) minmax(136px, 168px) minmax(150px, 200px);
+          --hud-cols: minmax(152px, 176px) minmax(150px, 0.9fr) minmax(190px, 1.4fr) minmax(176px, 230px) minmax(136px, 190px);
         }
         #hud-bottom-bar.hud-layout-ultra {
-          --hud-cols: minmax(140px, 168px) minmax(124px, 0.7fr) minmax(176px, 1.4fr) minmax(124px, 140px) minmax(112px, 132px) minmax(132px, 172px);
+          --hud-cols: minmax(140px, 168px) minmax(124px, 0.7fr) minmax(176px, 1.4fr) minmax(160px, 210px) minmax(124px, 170px);
         }
         #hud-bottom-bar[data-layout-mode='ultra'] #hud-base-tree-btn {
           padding: 4px 7px;
           font-size: 8px;
           gap: 2px;
-        }
-        #hud-bottom-bar[data-layout-mode='ultra'] #hud-meta-upgrade-hint {
-          display: none;
         }
         #hud-weapon-slots {
           max-width: 100%;
@@ -287,60 +305,71 @@ export class HUD {
           <div id="hud-weapon-slots" style="display:flex;gap:4px;align-items:center;"></div>
         </div>
 
-        <!-- 4: Base Skill Tree button -->
-        <div id="hud-base-tree-section" style="
-          display:flex;flex-direction:column;justify-content:flex-start;
-          padding:10px 12px 0;
+        <!-- 4: Character upgrades + base buttons (merged) -->
+        <div id="hud-upgrades-section" style="
+          display:flex;flex-direction:column;justify-content:center;
+          padding:8px 12px;
           border-right:1px solid rgba(139,58,42,0.3);
-          min-width:0;gap:6px;
+          position:relative;gap:5px;
         ">
-          <span style="color:${T.iron};font:bold 7px ${T.font};letter-spacing:1.2px;line-height:1;">BASE</span>
-          <div style="display:flex;align-items:center;height:44px;">
+          <!-- Top row: label + expand btn -->
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="color:${T.iron};font:bold 7px ${T.font};letter-spacing:1.2px;line-height:1;">CHARACTER</span>
+            <div id="hud-upg-expand-btn" style="
+              display:none;
+              margin-left:auto;
+              width:16px;height:16px;
+              background:rgba(139,58,42,0.4);
+              border:1px solid ${T.rust};
+              border-radius:3px;
+              cursor:pointer;
+              align-items:center;justify-content:center;
+              font:bold 10px ${T.font};color:${T.amber};line-height:1;
+              flex-shrink:0;
+            " title="View all buffs">⤢</div>
+          </div>
+          <!-- Skill slots row -->
+          <div id="hud-upg-player-row" style="display:flex;gap:4px;align-items:center;min-height:32px;"></div>
+          <!-- Base buttons row -->
+          <div style="display:flex;align-items:center;gap:5px;margin-top:1px;">
             <button id="hud-base-tree-btn" style="
               background:rgba(136,238,255,0.08);
               border:1px solid ${T.crystalCyan}66;
               border-radius:4px;
               color:${T.crystalCyan};
-              font:bold 9px ${T.font};
+              font:bold 8px ${T.font};
               letter-spacing:0.8px;
-              padding:0 10px;
-              height:36px;
+              padding:0 8px;
+              height:22px;
               cursor:pointer;
-              display:flex;align-items:center;gap:5px;
+              display:flex;align-items:center;gap:4px;
+              transition:background 0.15s,border-color 0.15s;
+              white-space:nowrap;flex:1;
+            " title="Open Base Skill Tree">
+              ${getIcon('cpu', 11, T.crystalCyan)}
+              BASE TREE
+            </button>
+            <button id="hud-mute-btn" style="
+              background:rgba(44,36,22,0.5);
+              border:1px solid ${T.rust}66;
+              border-radius:4px;
+              color:${T.iron};
+              font:bold 8px ${T.font};
+              letter-spacing:0.8px;
+              padding:0 7px;
+              height:22px;
+              cursor:pointer;
+              display:flex;align-items:center;gap:3px;
               transition:background 0.15s,border-color 0.15s;
               white-space:nowrap;
-            " title="Open Base Skill Tree">
-              ${getIcon('cpu', 13, T.crystalCyan)}
-              SKILL TREE
+            " title="Toggle sound (M)">
+              ${getIcon('zap', 10, T.iron)}
+              SFX
             </button>
           </div>
         </div>
 
-        <!-- 5: Applied Upgrades (CHAR only) -->
-        <div id="hud-upgrades-section" style="
-          display:flex;flex-direction:column;justify-content:flex-start;
-          padding:10px 12px 0;
-          border-right:1px solid rgba(139,58,42,0.3);
-          position:relative;gap:6px;
-        ">
-          <!-- Expand button -->
-          <div id="hud-upg-expand-btn" style="
-            display:none;
-            position:absolute;top:5px;right:5px;
-            width:18px;height:18px;
-            background:rgba(139,58,42,0.4);
-            border:1px solid ${T.rust};
-            border-radius:3px;
-            cursor:pointer;
-            align-items:center;justify-content:center;
-            font:bold 11px ${T.font};color:${T.amber};line-height:1;
-          " title="View all buffs">⤢</div>
-
-          <span style="color:${T.iron};font:bold 7px ${T.font};letter-spacing:1.2px;line-height:1;">CHARACTER</span>
-          <div id="hud-upg-player-row" style="display:flex;gap:4px;align-items:center;height:44px;"></div>
-        </div>
-
-        <!-- 6: Level / XP / Resources -->
+        <!-- 5: Level / XP / Resources -->
         <div id="hud-meta-section" style="
           display:flex;flex-direction:column;justify-content:center;
           padding:0 12px;gap:4px;min-width:120px;
@@ -358,10 +387,6 @@ export class HUD {
             <span id="res-iron"    style="color:${T.ironGrey};font:bold 10px ${T.font};white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;"></span>
             <span id="res-core"    style="color:${T.coreBlue};font:bold 10px ${T.font};white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;"></span>
             <span id="res-crystal" style="color:${T.crystalCyan};font:bold 10px ${T.font};white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;"></span>
-          </div>
-          <!-- Upgrade hint -->
-          <div id="hud-meta-upgrade-hint" style="color:${T.iron};font:8px ${T.font};letter-spacing:0.5px;">
-            [U] UPGRADES
           </div>
         </div>
       </div>
@@ -682,18 +707,12 @@ export class HUD {
     }
   }
 
-  // Build exactly 3 slots: fill from the 3 most recent entries, rest are empty
+  // Show up to 3 most recent skills; no empty placeholder slots
   private buildFixedSlots(entries: { icon: string; label: string; description: string; rarity: string; stacks: number }[], color: string): string {
-    const shown = entries.slice(-3)   // last 3 (most recent)
-    const result: string[] = []
-    // Pad from left with empty slots so filled slots are right-aligned
-    for (let i = shown.length; i < 3; i++) {
-      result.push(this.buildUpgSlotHtml(null, color))
+    if (entries.length === 0) {
+      return `<span style="color:rgba(122,112,96,0.4);font:8px ${T.font};">No skills yet</span>`
     }
-    for (const e of shown) {
-      result.push(this.buildUpgSlotHtml(e, color))
-    }
-    return result.join('')
+    return entries.slice(-3).map(e => this.buildUpgSlotHtml(e, color)).join('')
   }
 
   private toggleUpgModal(): void {

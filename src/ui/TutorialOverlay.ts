@@ -104,6 +104,30 @@ export class TutorialOverlay {
       `,
     },
     {
+      title: 'ENEMY TYPES',
+      icon: 'eye',
+      accent: T.blood,
+      render: () => `
+        <div style="${S.section(T.blood)}">
+          ${S.sectionHeader(T.blood, getIcon('eye', 13, T.blood), 'SPECIAL ZOMBIES')}
+          ${S.row(getIcon('heart', 14, '#44FF88'), 'Healer (Wave 5+)', 'Heals wounded allies nearby — eliminate it first to stop regen')}
+          ${S.sep()}
+          ${S.row(getIcon('circle-dot', 14, '#88CC44'), 'Spitter (Wave 3+)', 'Ranged acid attack — stays at distance, deals base damage directly')}
+        </div>
+        <div style="${S.section(T.rust)}">
+          ${S.sectionHeader(T.rust, getIcon('activity', 13, T.rust), 'ZOMBIE TIERS')}
+          <div style="color:${T.bg};font:11px/1.7 ${T.font};">
+            After each boss wave, stronger <b style="color:${T.amber}">Tier</b> variants begin spawning.<br>
+            <span style="color:${T.iron};">◆ diamonds above a zombie indicate its tier. Higher tiers hit harder and take more damage.</span>
+          </div>
+        </div>
+        <div style="${S.note(T.amber)}">
+          ${getIcon('zap', 12, T.amber)}
+          <span>Tank and Armored zombies have high HP/resistance — use <b style="color:${T.amber}">Explosive</b> or <b style="color:${T.amber}">Electric</b> towers to handle groups.</span>
+        </div>
+      `,
+    },
+    {
       title: 'TOWERS',
       icon: 'layers',
       accent: T.orange,
@@ -124,9 +148,13 @@ export class TutorialOverlay {
           ${S.sep()}
           ${S.towerRow('zap', T.coreBlue, 'Electric Tower', '20⬡ · 12◈', 'Chains to 4 targets')}
           ${S.sep()}
-          ${S.towerRow('refresh-cw', T.hpHigh, 'Repair Tower', '15⬡ · 10◈', 'Spawns repair worker drones')}
+          ${S.towerRow('refresh-cw', T.hpHigh, 'Repair Tower', '15⬡ · 10◈', 'Spawns 3 repair worker drones')}
           ${S.sep()}
           ${S.towerRow('crosshair', T.amber, 'Machine Gun', '30⬡ · 6◈', 'Rapid-fire single target')}
+          ${S.sep()}
+          ${S.towerRow('zap', T.crystalCyan, 'Freeze Tower', '18⬡ · 14◈', 'Pulse AoE — slows all nearby zombies')}
+          ${S.sep()}
+          ${S.towerRow('circle-dot', '#88CC44', 'Poison Tower', '22⬡ · 10◈', 'Stacking poison DOT on hit (×3 stacks)')}
         </div>
       `,
     },

@@ -29,6 +29,7 @@ interface GameRef {
   screenH: number
   shake(intensity: number, duration: number): void
   hud: { showMessage(msg: string, color?: string, duration?: number): void }
+  audio?: { playGunshot(c: string): void; playDryFire(): void; playReload(c: string): void }
 }
 
 // Per-slot ammo state so each weapon remembers its own ammo
@@ -81,6 +82,21 @@ export class Player {
   // Overcharge: true right after a reload finishes
   private overchargeReady = false
 
+  // v1.7 skill flags
+  acidCoatingEnabled = false
+  acidCoatingStacks = 0
+  kineticStrikeEnabled = false
+  kineticHitStreak = 0
+  kineticLastTarget: object | null = null
+  ricochetEnabled = false
+  focusedFireEnabled = false
+  focusedFireStacks = 0
+  focusedFireMaxStacks = 10
+  private focusedLastAngle = 0
+  executionerEnabled = false
+  executionerReady = false
+  executionerTimer = 0
+
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
   private activeSlotIndex = 0
@@ -126,6 +142,7 @@ export class Player {
     this.updateReload(dt, input, game)
     this.updateWeaponSwitch(input, game)
     this.updateBerserker(dt)
+    this.updateExecutioner(dt)
     if (this.invincibleTimer > 0) this.invincibleTimer -= dt
 
     // Delayed follow bullet for Twin Shot
@@ -156,6 +173,15 @@ export class Player {
     if (!this.berserkerEnabled || this.berserkerStacks === 0) return
     this.berserkerTimer -= dt
     if (this.berserkerTimer <= 0) this.berserkerStacks = 0
+  }
+
+  private updateExecutioner(dt: number): void {
+    if (!this.executionerEnabled || !this.executionerReady) return
+    this.executionerTimer -= dt
+    if (this.executionerTimer <= 0) {
+      this.executionerReady = false
+      this.executionerTimer = 0
+    }
   }
 
   private updateWeaponSwitch(input: InputManager, game: GameRef): void {
@@ -212,6 +238,17 @@ export class Player {
     const w = this.currentWeapon
     const basePellets = w.class === 'shotgun' ? 8 : 1
 
+    // Focused Fire: track consecutive angle
+    if (this.focusedFireEnabled) {
+      const angleDiff = Math.abs(((this.angle - this.focusedLastAngle) + Math.PI) % (2 * Math.PI) - Math.PI)
+      if (angleDiff < 0.087) { // ~5 degrees
+        this.focusedFireStacks = Math.min(this.focusedFireStacks + 1, this.focusedFireMaxStacks)
+      } else {
+        this.focusedFireStacks = 0
+      }
+      this.focusedLastAngle = this.angle
+    }
+
     for (let i = 0; i < basePellets; i++) {
       const spread = (Math.random() - 0.5) * (w.spread * Math.PI / 180)
       const angle = this.angle + spread
@@ -229,6 +266,14 @@ export class Player {
       b.weaponClass = w.class
       b.lifesteal = this.stats.lifesteal
       b.deathMark = this.deathMarkEnabled
+      b.canRicochet = this.ricochetEnabled
+      // Grenade launcher bullets always explode
+      if (w.class === 'grenadeLauncher') {
+        b.isExplosive = true
+        b.splashFraction = 0.55
+        b.splashRadius = 70
+        b.radius = 8
+      }
       game.bullets.push(b)
 
       // Twin Shot: queue a follow-up bullet with 0.08s delay, same trajectory
@@ -244,6 +289,7 @@ export class Player {
 
     this.overchargeReady = false
     game.shake(w.shakeIntensity, w.shakeDuration)
+    game.audio?.playGunshot(w.class)
     this.fireCooldown = 1 / (w.fireRate * this.fireRateMultiplier)
   }
 
@@ -262,10 +308,12 @@ export class Player {
   private startReload(game: GameRef): void {
     if (this.reserveAmmo <= 0) {
       game.hud.showMessage('No ammo!', '#f88')
+      game.audio?.playDryFire()
       return
     }
     this.reloading = true
     this.reloadTimer = this.currentWeapon.reloadTime / this.stats.reloadSpeedMult
+    game.audio?.playReload(this.currentWeapon.class)
   }
 
   private finishReload(): void {
@@ -295,6 +343,18 @@ export class Player {
       base *= 2
     }
 
+    // Focused Fire: +4% per consecutive shot in same direction
+    if (this.focusedFireEnabled && this.focusedFireStacks > 0) {
+      base = Math.floor(base * (1 + this.focusedFireStacks * 0.04))
+    }
+
+    // Executioner: triple damage on next shot after execute
+    if (this.executionerEnabled && this.executionerReady) {
+      base *= 3
+      this.executionerReady = false
+      this.executionerTimer = 0
+    }
+
     const crit = Math.random() < this.stats.critChance
     return crit ? Math.floor(base * 2) : base
   }
@@ -311,10 +371,35 @@ export class Player {
   }
 
   // Called by the game when a bullet this player fired hits a zombie
-  onBulletHit(damageDealt: number): void {
+  onBulletHit(damageDealt: number, target?: object): void {
     if (this.stats.lifesteal > 0) {
       this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + damageDealt * this.stats.lifesteal)
     }
+
+    // Kinetic Strike: 8 consecutive hits on same target → stun 0.6s
+    if (this.kineticStrikeEnabled && target) {
+      if (target === this.kineticLastTarget) {
+        this.kineticHitStreak++
+      } else {
+        this.kineticHitStreak = 1
+        this.kineticLastTarget = target
+      }
+      if (this.kineticHitStreak >= 10) {
+        this.kineticHitStreak = 0
+        // The stun is applied by Game.ts after calling onBulletHit — returns a flag
+        this._kineticStunPending = true
+      }
+    }
+  }
+
+  // Consumed by Game.ts in bullet hit handler
+  _kineticStunPending = false
+
+  // Called by Game.ts before onZombieDead when kill was below 30% HP
+  triggerExecutioner(): void {
+    if (!this.executionerEnabled) return
+    this.executionerReady = true
+    this.executionerTimer = 2
   }
 
   // Called when player kills a zombie
@@ -331,7 +416,7 @@ export class Player {
     if (this.stats.xp >= this.stats.xpToNext) {
       this.stats.xp -= this.stats.xpToNext
       this.stats.level++
-      this.stats.xpToNext = Math.floor(this.stats.xpToNext * 1.4)
+      this.stats.xpToNext = Math.floor(this.stats.xpToNext * 1.3)
       onLevelUp?.()
     }
   }

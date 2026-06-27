@@ -7,6 +7,7 @@ interface BaseRef { x: number; y: number; hp: number; maxHp: number; takeDamage(
 interface EffectsRef {
   spawnLightningChain(points: { x: number; y: number }[]): void
   spawnRadialBurst(x: number, y: number): void
+  spawnFrostPulse?(x: number, y: number, radius: number): void
 }
 
 export class Tower {
@@ -32,6 +33,8 @@ export class Tower {
   neuralNetworkActive = false
 
   private fireCooldown = 0
+  pulseRingTimer = 0
+  pulseRingMax = 0
 
   constructor(
     x: number,
@@ -41,16 +44,24 @@ export class Tower {
     this.x = x
     this.y = y
     this.hp = profile.hp
+    // Freeze tower: init cooldown to pulse period so it doesn't fire immediately
+    if (profile.type === 'freezeTower') {
+      this.fireCooldown = profile.pulseCooldown ?? 3.0
+    }
   }
 
   update(dt: number, zombies: Zombie[], _base: BaseRef, bullets: Bullet[], effects?: EffectsRef): void {
     if (!this.alive) return
     if (this.fireCooldown > 0) this.fireCooldown -= dt
 
+    if (this.pulseRingTimer > 0) this.pulseRingTimer -= dt
+
     switch (this.profile.type) {
       case 'fireTower':       this.updateFireTower(zombies, bullets, effects); break
       case 'electricTower':   this.updateElectricTower(zombies, effects); break
       case 'machineGunTower': this.updateMachineGun(zombies, bullets); break
+      case 'freezeTower':     this.updateFreezeTower(zombies, effects); break
+      case 'poisonTower':     this.updatePoisonTower(zombies, bullets); break
       case 'repairTower':     break
       case 'barricade':       break
     }
@@ -160,6 +171,40 @@ export class Tower {
 
     bullets.push(b)
     this.fireCooldown = 1 / fireRate
+  }
+
+  private updateFreezeTower(zombies: Zombie[], effects?: EffectsRef): void {
+    if (this.fireCooldown > 0) return
+    const range = this.effectiveRange(this.profile.range)
+    const slow = this.profile.slowAmount ?? 0.35
+    let hit = false
+    for (const z of zombies) {
+      if (!z.alive || dist(this.x, this.y, z.x, z.y) > range) continue
+      z.slowFactor = Math.max(z.slowFactor, slow)
+      hit = true
+    }
+    if (hit || true) {  // always pulse visually even if no zombies present
+      const pulseCd = (this.profile.pulseCooldown ?? 3.0) / this.level
+      this.fireCooldown = pulseCd
+      this.pulseRingTimer = 0.5
+      this.pulseRingMax = 0.5
+      effects?.spawnFrostPulse?.(this.x, this.y, range)
+    }
+  }
+
+  private updatePoisonTower(zombies: Zombie[], bullets: Bullet[]): void {
+    if (this.fireCooldown > 0) return
+    const target = this.findNearest(zombies, this.effectiveRange(this.profile.range))
+    if (!target) return
+    const angle = angleTo(this.x, this.y, target.x, target.y)
+    const dmg = this.effectiveDamage(this.profile.damage * this.level)
+    const b = new Bullet(this.x, this.y, angle, 500, dmg, 'tower')
+    b.isPoisoned = true
+    b.poisonDps = (this.profile.poisonDps ?? 6) * this.level
+    b.poisonDuration = this.profile.poisonDuration ?? 4
+    b.radius = 5
+    bullets.push(b)
+    this.fireCooldown = 1 / this.effectiveFireRate(this.profile.fireRate)
   }
 
   private findNearest(zombies: Zombie[], range: number): Zombie | null {
