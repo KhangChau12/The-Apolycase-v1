@@ -577,7 +577,11 @@ export class Game {
       for (const z of this.zombies) {
         if (!z.alive || !u.alive) continue
         if (dist(u.x, u.y, z.x, z.y) < u.profile.radius + z.radius) {
+          const wasAlive = u.alive
           u.takeDamage(z.damage * dt, this.base)
+          if (wasAlive && !u.alive) {
+            this.effects.spawnShockwaveDebris(u.x, u.y, u.profile.glowColor)
+          }
         }
       }
 
