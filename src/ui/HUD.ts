@@ -566,13 +566,19 @@ export class HUD {
       } else {
         const magPct = slot.profile.magSize > 0 ? slot.ammoInMag / slot.profile.magSize : 0
         const isEmpty = slot.ammoInMag === 0
-        const barColor = isEmpty ? T.blood : magPct <= 0.25 ? T.orange : T.amber
-        if (ammoFill)  { ammoFill.style.width = `${magPct * 100}%`; ammoFill.style.background = barColor }
-        if (ammoLabel) ammoLabel.textContent = 'AMMO'
-        if (ammoVal)   {
+        const isOutOfAmmo = isEmpty && slot.reserveAmmo === 0
+        const pulse = 0.5 + 0.5 * Math.abs(Math.sin(Date.now() / 300))
+        const barColor = isOutOfAmmo ? T.blood : isEmpty ? T.orange : magPct <= 0.25 ? T.orange : T.amber
+        if (ammoFill) {
+          ammoFill.style.width = isOutOfAmmo ? '100%' : `${magPct * 100}%`
+          ammoFill.style.background = barColor
+          ammoFill.style.opacity = isOutOfAmmo ? String(pulse) : '1'
+        }
+        if (ammoLabel) ammoLabel.textContent = isOutOfAmmo ? 'DRY' : 'AMMO'
+        if (ammoVal) {
           ammoVal.style.display = 'inline'
-          ammoVal.textContent = `${slot.ammoInMag}/${slot.reserveAmmo}`
-          ammoVal.style.color = isEmpty ? T.blood : T.bg
+          ammoVal.textContent = isOutOfAmmo ? 'NO AMMO' : `${slot.ammoInMag}/${slot.reserveAmmo}`
+          ammoVal.style.color = isOutOfAmmo ? T.blood : isEmpty ? T.orange : T.bg
         }
       }
     }

@@ -114,6 +114,9 @@ export class Player {
   dsrComboCount = 0
   dsrComboBonus = false
 
+  // Rate-limit "no ammo" feedback to avoid spamming HUD message while mouse held
+  private noAmmoMsgCooldown = 0
+
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
   private activeSlotIndex = 0
@@ -159,6 +162,7 @@ export class Player {
     this.updateFire(dt, input, game)
     this.updateReload(dt, input, game)
     this.updateWeaponSwitch(input, game)
+    if (this.noAmmoMsgCooldown > 0) this.noAmmoMsgCooldown -= dt
     this.updateBerserker(dt)
     this.updateExecutioner(dt)
     if (this.invincibleTimer > 0) this.invincibleTimer -= dt
@@ -360,8 +364,11 @@ export class Player {
 
   private startReload(game: GameRef): void {
     if (this.reserveAmmo <= 0) {
-      game.hud.showMessage('No ammo!', '#f88')
-      game.audio?.playDryFire()
+      if (this.noAmmoMsgCooldown <= 0) {
+        game.hud.showMessage('No ammo!', '#f88')
+        game.audio?.playDryFire()
+        this.noAmmoMsgCooldown = 1.5
+      }
       return
     }
     this.reloading = true
