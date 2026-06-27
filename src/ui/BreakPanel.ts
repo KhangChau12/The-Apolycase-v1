@@ -458,7 +458,14 @@ export class BreakPanel {
                       <span style="color:${T.bg};font:bold 11px ${T.font};display:flex;align-items:center;gap:5px;">
                         ${active ? `${getIcon('check', 11, T.amber)} ` : owned ? `${getIcon('check', 11, '#4CAF50')} ` : ''}${wp.label}
                       </span>
-                      <span style="color:${T.iron};font:9px ${T.font};">${wp.damage} dmg · ${wp.fireRate}/s · ${wp.magSize} mag</span>
+                      <span style="color:${T.iron};font:9px ${T.font};">${wp.damage} dmg · ${wp.fireRate}/s · ${wp.magSize} mag${
+                        wp.id === 'sniper_awp' ? ` <span style="color:${T.coreBlue};font-size:8px;">▸HOLD-AIM</span>` :
+                        wp.id === 'shotgun_870' ? ` <span style="color:${T.amber};font-size:8px;">▸KNOCKBACK</span>` :
+                        wp.id === 'smg_mp5' ? ` <span style="color:${T.hpHigh};font-size:8px;">▸RUN-GUN</span>` :
+                        wp.id === 'ar_m4' ? ` <span style="color:${T.amber};font-size:8px;">▸FOCUS</span>` :
+                        wp.id === 'rifle_dsr' ? ` <span style="color:${T.gold};font-size:8px;">▸LOCK</span>` :
+                        wp.id === 'rl_m79' ? ` <span style="color:${T.blood};font-size:8px;">▸RISK</span>` : ''
+                      }</span>
                     </span>
                     <span style="
                       color:${active ? T.amber : owned ? '#4CAF50' : wp.cost === 0 ? T.iron : T.gold};
