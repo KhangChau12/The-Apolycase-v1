@@ -1741,7 +1741,47 @@ export class Game {
         ctx.restore()
         continue
       }
-      // Light streak â€" two-pass (glow + core)
+            // Acid blob (spitter projectile): glowing green orb with drip trail
+      if (b.hitsBase && b.isBurning) {
+        const t2 = Date.now()
+        const w2 = Math.sin(t2 / 70) * 0.2
+        ctx.save()
+        for (let ti = 1; ti <= 3; ti++) {
+          const backA = b.angle + Math.PI
+          const tx = b.x + Math.cos(backA) * ti * (b.radius * 1.1)
+          const ty = b.y + Math.sin(backA) * ti * (b.radius * 1.1)
+          const tr = b.radius * (1 - ti * 0.28)
+          if (tr <= 0) break
+          ctx.globalAlpha = (1 - ti * 0.3) * 0.75
+          ctx.shadowColor = '#44FF44'
+          ctx.shadowBlur = 6
+          ctx.fillStyle = '#336600'
+          ctx.beginPath()
+          ctx.ellipse(tx, ty, tr * 0.7, tr, 0, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.globalAlpha = 1
+        ctx.shadowColor = '#88FF44'
+        ctx.shadowBlur = 16
+        ctx.fillStyle = '#336600'
+        ctx.save()
+        ctx.translate(b.x, b.y)
+        ctx.rotate(w2)
+        ctx.beginPath()
+        ctx.ellipse(0, 0, b.radius * 1.15, b.radius, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+        ctx.shadowColor = '#CCFF44'
+        ctx.shadowBlur = 8
+        ctx.fillStyle = '#66CC00'
+        ctx.beginPath()
+        ctx.arc(b.x, b.y, b.radius * 0.5, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.shadowBlur = 0
+        ctx.restore()
+        continue
+      }
+// Light streak â€" two-pass (glow + core)
       const sk = (b.weaponClass && BULLET_STREAK[b.weaponClass]) ? BULLET_STREAK[b.weaponClass] : DEFAULT_STREAK
       const tailX = b.x - Math.cos(b.angle) * sk.len
       const tailY = b.y - Math.sin(b.angle) * sk.len
