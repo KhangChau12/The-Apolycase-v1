@@ -612,6 +612,7 @@ export class Game {
         u.pendingStompSplash = null
         const glowColor = u.profile.glowColor
         this.effects.spawnShockwaveDebris(s.x, s.y, glowColor)
+        this.shake(s.isPrimary ? 4 : 2, s.isPrimary ? 0.22 : 0.14)
 
         if (s.isPrimary && s.primaryTarget && s.primaryTarget.alive) {
           s.primaryTarget.takeDamage(s.primaryDamage ?? s.damage)
@@ -776,6 +777,7 @@ export class Game {
         this.hud.showMessage(`Boss defeated! +1 Crystal -- Territory expanded to ${this.territory.radius}px`, T.gold, 3500)
         this.effects.triggerExplosionFlash()
         this.effects.spawnTerritoryExpand(BASE_X, BASE_Y, this.territory.radius)
+        this.shake(8, 0.6)
       }
       this.enterBreak()
     }
