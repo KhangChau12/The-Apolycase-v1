@@ -15,9 +15,9 @@ export interface ZombieDrops {
   ammo: number
 }
 
-interface BaseTarget { x: number; y: number; takeDamage(n: number): void }
-interface TowerTarget { x: number; y: number; hp: number; alive: boolean; takeDamage(n: number): void }
-interface PlayerTarget { x: number; y: number; takeDamage(n: number): void }
+interface BaseTarget { x: number; y: number; takeDamage(n: number, attacker?: { takeDamage(n: number): void }): void }
+interface TowerTarget { x: number; y: number; hp: number; alive: boolean; takeDamage(n: number, attacker?: { takeDamage(n: number): void }): void }
+interface PlayerTarget { x: number; y: number; takeDamage(n: number, attacker?: { takeDamage(n: number): void }): void }
 
 interface GameRef {
   shake(i: number, d: number): void
@@ -324,7 +324,7 @@ export class Zombie {
       if (this.windupTimer <= 0) {
         this.windupActive = false
         const mult = COMBO_DAMAGE_MULT[this.comboCounter % COMBO_DAMAGE_MULT.length]
-        target.takeDamage(Math.floor(this.damage * mult))
+        target.takeDamage(Math.floor(this.damage * mult), this)
         this.comboCounter = (this.comboCounter + 1) % COMBO_DAMAGE_MULT.length
         this.attackCooldown = 1 / this.attackRate
         this.attackFlashTimer = 0.12

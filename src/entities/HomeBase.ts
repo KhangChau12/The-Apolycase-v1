@@ -39,6 +39,7 @@ export class HomeBase {
   // Stun pulse
   stunPulseEnabled = false
   stunPulseCooldownMax = 10
+  pendingStunPulse = false    // consumed by Game.ts for VFX
   private stunTimer = 0
 
   // Active base attacks
@@ -162,7 +163,7 @@ export class HomeBase {
     const heal = this.auraHealPerSec * dt
 
     const stunThisFrame = this.stunPulseEnabled && this.stunTimer >= this.stunPulseCooldownMax
-    if (stunThisFrame) this.stunTimer = 0
+    if (stunThisFrame) { this.stunTimer = 0; this.pendingStunPulse = true }
 
     for (const z of zombies) {
       if (!z.alive) continue

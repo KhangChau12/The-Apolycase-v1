@@ -721,6 +721,26 @@ export class Game {
       }
     }
 
+    // Counter Strike: fire retaliatory shot at attacker
+    if (this.base.pendingCounterStrike) {
+      const attacker = this.base.pendingCounterStrike as { x: number; y: number; alive?: boolean }
+      this.base.pendingCounterStrike = null
+      if (!('alive' in attacker) || attacker.alive) {
+        const angle = angleTo(BASE_X, BASE_Y, attacker.x, attacker.y)
+        const cb = new Bullet(BASE_X, BASE_Y, angle, 600, 30, 'tower')
+        cb.isPenetrating = false
+        this.bullets.push(cb)
+        this.effects.spawnLightningChain([{ x: BASE_X, y: BASE_Y }, { x: attacker.x, y: attacker.y }])
+      }
+    }
+
+    // Stun Pulse VFX: shockwave + lightning burst when pulse fires
+    if (this.base.pendingStunPulse) {
+      this.base.pendingStunPulse = false
+      this.effects.spawnFrostPulse(BASE_X, BASE_Y, this.base.auraRadius * 0.8)
+      this.shake(0.8, 0.15)
+    }
+
     for (const d of this.drops) d.update(dt)
     this.tryPickupDrops()
     this.drops = this.drops.filter(d => !d.picked)
