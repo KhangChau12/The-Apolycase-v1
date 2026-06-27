@@ -573,7 +573,6 @@ Spawn at wave start via `spawnGarrison()` if `base.garrisonEnabled`. Visual iden
 - **`pendingSoldierBullets: PendingSoldierBullet[]`** — Game.ts spawn 2 Bullet (`isExplosive`) per entry; cleared sau khi consume
 - **`pendingStompSplash: PendingStompSplash | null`** — AOE damage + slow; `isPrimary=true` cho Titan (primary target nhận full, còn lại 60%)
 - **`pendingHealParticle: { x, y } | null`** — Game.ts gọi `effects.spawnHealParticles()` tại vị trí target
-- **`titanSplashPending`** — legacy field, luôn bị nullify ngay sau update (thay thế bởi `pendingStompSplash`)
 
 ### Soldier attack — burst mode:
 - Khi `attackCooldown` hết: set `burstQueue = {remaining:3, intervalTimer:0, angle}`
@@ -628,7 +627,7 @@ Spawn at wave start via `spawnGarrison()` if `base.garrisonEnabled`. Visual iden
 
 14. **BaseSkillTreeModal node states:** `owned` = pulsing glow ring (CSS `@keyframes bst-owned-pulse`) + stronger `box-shadow` with halo; `unlockable` = bright border + glow; `prereqMet but can't afford` = dim border; `locked` = fully dimmed. No tick/check badge — owned state is indicated solely by glow. `baseCore` is auto-applied in `show()` before rendering so all branch gateways become unlockable immediately.
 
-13. **Garrison unit outputs:** GarrisonUnit không tự apply damage hay effects — thay vào đó set pending fields (`pendingSoldierBullets`, `pendingStompSplash`, `pendingHealParticle`) được Game.ts consume mỗi frame. Zombie damage to garrison units uses `z.damage * dt` (continuous DPS). `titanSplashPending` là legacy field — luôn bị nullify, dùng `pendingStompSplash` thay thế.
+13. **Garrison unit outputs:** GarrisonUnit không tự apply damage hay effects — thay vào đó set pending fields (`pendingSoldierBullets`, `pendingStompSplash`, `pendingHealParticle`) được Game.ts consume mỗi frame. Zombie damage to garrison units uses `z.damage * dt` (continuous DPS).
 
 15. **Zombie tier progression:** Tier của zombie thường được roll tại Spawner theo wave/boss milestones; boss luôn tier 0 trong game logic. Mọi scaling stat/size/xp theo tier đi qua `ZOMBIE_TIER_SCALING` + constructor `Zombie` để giữ behavior tập trung và dễ tune.
 

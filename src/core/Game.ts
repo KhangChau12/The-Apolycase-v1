@@ -558,9 +558,6 @@ export class Game {
         }
       }
 
-      // Legacy titan splash compat â€" cleared by new system, nullify if somehow still set
-      u.titanSplashPending = null
-
       // Medic heal particles
       if (u.pendingHealParticle) {
         const p = u.pendingHealParticle

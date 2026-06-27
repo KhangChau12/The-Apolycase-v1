@@ -61,9 +61,6 @@ export class GarrisonUnit {
   pendingStompSplash: PendingStompSplash | null = null
   pendingHealParticle: PendingHealParticle | null = null
 
-  // Legacy compat — titan splash still populated for backward compat
-  titanSplashPending: { x: number; y: number; dmg: number } | null = null
-
   private target: Zombie | null = null
   private attackCooldown = 0
 
@@ -265,10 +262,6 @@ export class GarrisonUnit {
       primaryDamage: attackDmg,
     }
 
-    // Legacy compat
-    if (this.target) {
-      this.titanSplashPending = { x: this.x, y: this.y, dmg: attackDmg * 0.6 }
-    }
   }
 
   private updateMedic(dt: number, towers: Tower[], player: PlayerRef, base: HomeBase): void {
