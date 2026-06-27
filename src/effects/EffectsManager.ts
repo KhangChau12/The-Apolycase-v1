@@ -649,6 +649,29 @@ export class EffectsManager {
     }
   }
 
+  spawnLevelUpBurst(x: number, y: number): void {
+    const colors = [T.gold, T.amber, '#FFFFFF', T.crystalCyan]
+    for (let i = 0; i < 24; i++) {
+      const angle = (i / 24) * Math.PI * 2
+      const speed = 80 + Math.random() * 60
+      const color = colors[i % colors.length]
+      this.particles.push(new Particle(x, y, color, 3 + Math.random() * 3, speed, {
+        dirAngle: angle,
+        spread: 0.18,
+        gravity: 20,
+        sizeDecay: 4,
+        life: 0.6 + Math.random() * 0.4,
+      }))
+    }
+    // Central bright flash ring (smaller sparks inward)
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2
+      this.particles.push(new Particle(x, y, '#FFFFFF', 5, 30 + Math.random() * 20, {
+        dirAngle: angle, spread: 0.3, gravity: 0, sizeDecay: 12, life: 0.25,
+      }))
+    }
+  }
+
   spawnFrostPulse(x: number, y: number, _radius: number): void {
     const count = 20
     for (let i = 0; i < count; i++) {

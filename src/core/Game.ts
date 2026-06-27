@@ -736,6 +736,7 @@ export class Game {
     this.player.addXp(z.xpReward, () => {
       this.hud.triggerLevelUp()
       this.audio.playLevelUp()
+      this.effects.spawnLevelUpBurst(this.player.x, this.player.y)
       this.showPlayerLevelUpModal()
     })
   }
