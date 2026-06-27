@@ -1094,6 +1094,8 @@ export class Game {
         this.drawMachineGunTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'freezeTower') {
         this.drawFreezeTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+      } else if (t.profile.type === 'poisonTower') {
+        this.drawPoisonTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else {
         ctx.fillStyle = s.fill
         ctx.strokeStyle = s.stroke
@@ -1113,7 +1115,7 @@ export class Game {
       ctx.fillRect(-14, -22, 28 * hpPct, 4)
 
       // Type icon (skip towers with custom body renderers)
-      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower' && t.profile.type !== 'machineGunTower' && t.profile.type !== 'freezeTower') {
+      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower' && t.profile.type !== 'machineGunTower' && t.profile.type !== 'freezeTower' && t.profile.type !== 'poisonTower') {
         drawIcon(ctx, t.profile.type, s.stroke)
       }
 
@@ -2116,6 +2118,59 @@ export class Game {
     ctx.fill()
     ctx.stroke()
     ctx.restore()
+
+    ctx.shadowBlur = 0
+  }
+
+  private drawPoisonTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+    const lw = inspected ? 3 : 2
+    const drip = Math.sin(Date.now() / 600) * 0.5 + 0.5
+
+    // Round acid tank body (slightly oval — wider than tall)
+    ctx.beginPath()
+    ctx.ellipse(0, 1, 11, 10, 0, 0, Math.PI * 2)
+    ctx.fillStyle = '#0a140a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.fill()
+    ctx.stroke()
+
+    // Pressure gauge circle on tank (detail)
+    ctx.beginPath()
+    ctx.arc(-4, -1, 3, 0, Math.PI * 2)
+    ctx.fillStyle = '#1a280a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 1
+    ctx.fill()
+    ctx.stroke()
+
+    // Spray nozzle: short tube pointing up-right at 45°
+    ctx.save()
+    ctx.rotate(-Math.PI / 4)
+    ctx.fillStyle = '#1a2a0a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.beginPath()
+    ctx.rect(4, -2.5, level >= 2 ? 10 : 8, 5)
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
+
+    // Acid drip drops: 2-3 small circles below tank (animated drip position)
+    const dropCount = level >= 3 ? 3 : 2
+    for (let i = 0; i < dropCount; i++) {
+      const dropY = 12 + i * 6 + drip * 4
+      const alpha = 1 - i * 0.3 - drip * 0.2
+      ctx.save()
+      ctx.globalAlpha = Math.max(0, alpha)
+      ctx.beginPath()
+      ctx.arc(3 + i * 3, dropY, 2 - i * 0.3, 0, Math.PI * 2)
+      ctx.fillStyle = level >= 2 ? '#AAEE22' : '#88CC44'
+      ctx.shadowColor = stroke
+      ctx.shadowBlur = 4
+      ctx.fill()
+      ctx.restore()
+    }
 
     ctx.shadowBlur = 0
   }
