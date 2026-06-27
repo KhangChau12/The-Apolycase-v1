@@ -2024,10 +2024,12 @@ export class Game {
   }
 
   private renderDrops(ctx: CanvasRenderingContext2D): void {
+    const now = Date.now()
     for (const d of this.drops) {
       if (d.picked) continue
+      const bob = Math.sin(now / 350 + d.x * 0.05) * 2.5
       ctx.save()
-      ctx.translate(d.x, d.y)
+      ctx.translate(d.x, d.y + bob)
       const color = d.crystal
         ? T.crystalCyan
         : d.energyCore > 0 ? T.coreBlue
@@ -2035,11 +2037,19 @@ export class Game {
         : d.iron > 0       ? T.ironGrey
         : T.gold
       ctx.shadowColor = color
-      ctx.shadowBlur = 4 + 2 * Math.sin(Date.now() / 300)
+      ctx.shadowBlur = 5 + 3 * Math.sin(now / 300)
       ctx.fillStyle = color
       ctx.beginPath()
       ctx.arc(0, 0, 6, 0, Math.PI * 2)
       ctx.fill()
+      // inner bright core
+      ctx.globalAlpha = 0.6 + 0.3 * Math.sin(now / 200 + d.x)
+      ctx.fillStyle = '#ffffff'
+      ctx.shadowBlur = 0
+      ctx.beginPath()
+      ctx.arc(0, -1.5, 2, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 1
       ctx.shadowBlur = 0
       ctx.restore()
     }
