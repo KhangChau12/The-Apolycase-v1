@@ -2031,6 +2031,25 @@ export class Game {
       ctx.globalAlpha = 1
       ctx.restore()
     }
+
+    // Focused Fire stack arc — amber arc filling clockwise as stacks build
+    if (p.focusedFireEnabled && p.focusedFireStacks > 0) {
+      const stackPct = p.focusedFireStacks / p.focusedFireMaxStacks
+      const intensity = 0.4 + 0.6 * stackPct
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.beginPath()
+      ctx.arc(0, 0, 25, -Math.PI / 2, -Math.PI / 2 + stackPct * Math.PI * 2)
+      ctx.strokeStyle = T.amber
+      ctx.lineWidth = 2.5
+      ctx.shadowColor = T.amber
+      ctx.shadowBlur = 10 + 8 * stackPct
+      ctx.globalAlpha = intensity
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+      ctx.restore()
+    }
   }
 
   // â"€â"€ Bullets / Drops / Particles â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
