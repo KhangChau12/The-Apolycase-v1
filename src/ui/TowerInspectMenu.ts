@@ -158,7 +158,7 @@ export class TowerInspectMenu {
             color:${canUpgrade ? '#4CAF50' : '#5a4a3a'};
             font:bold 11px ${T.font};padding:7px 10px;border-radius:2px;cursor:pointer;flex:1;
           " ${canUpgrade ? '' : 'disabled'}>
-            Upgrade LV${t.level + 1}
+            Upgrade LV${t.level + 1} &nbsp;·&nbsp; ⬡${upgCost.iron}${upgCost.core > 0 ? ` ◈${upgCost.core}` : ''}
           </button>` : ''}
           <button id="tim-sell" style="
             background:rgba(139,58,42,0.15);
