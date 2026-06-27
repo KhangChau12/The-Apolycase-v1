@@ -105,6 +105,10 @@ export class Player {
   // MP5 run-and-gun: true when player moved this frame
   isMoving = false
 
+  // AR M4 precision window: time player has stood still (0 resets on move)
+  arStillTimer = 0
+  private static readonly AR_FOCUS_THRESHOLD = 0.3
+
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
   private activeSlotIndex = 0
@@ -224,8 +228,11 @@ export class Player {
     if (input.isDown('KeyD') || input.isDown('ArrowRight')) dx += 1
     const len = Math.sqrt(dx * dx + dy * dy)
     this.isMoving = len > 0
-    if (len > 0) {
+    if (this.isMoving) {
+      this.arStillTimer = 0
       dx /= len; dy /= len
+    } else {
+      this.arStillTimer += dt
     }
     this.x = clamp(this.x + dx * this.effectiveSpeed * dt, 20, 2980)
     this.y = clamp(this.y + dy * this.effectiveSpeed * dt, 20, 2980)
@@ -278,7 +285,10 @@ export class Player {
 
     // Sniper hold-breath bonus: perfect shot on full charge
     const sniperPerfect = w.class === 'sniperRifle' && this.holdBreathReady
-    const spreadDeg = sniperPerfect ? 0 : w.spread
+
+    // AR M4 precision window: spread halved when standing still for 0.3s+
+    const arFocused = w.id === 'ar_m4' && this.arStillTimer >= Player.AR_FOCUS_THRESHOLD
+    const spreadDeg = sniperPerfect ? 0 : arFocused ? w.spread * 0.25 : w.spread
 
     for (let i = 0; i < basePellets; i++) {
       const spread = (Math.random() - 0.5) * (spreadDeg * Math.PI / 180)

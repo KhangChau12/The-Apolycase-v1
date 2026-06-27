@@ -239,6 +239,11 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 - **Implementation:** `Bullet` gets a `knockback: number` field (default 0). Shotgun bullets set `knockback = 40`. Game.ts bullet-hit handler accumulates pushes per zombie per frame using a `Map<Zombie, {x,y}>`, then applies them after the bullet loop.
 - **Why it fits:** Shotgun is the most expensive close-range weapon (cost 180, damage 12×8 at 0.8/s). Knockback lets skilled players use it as a crowd-control tool — push zombies away from the base entrance, buy time, create space. This is a **different decision** than any other weapon: the AR kills faster, the shotgun buys distance. Cost is low (180) so the mechanic unlocks early as a positioning tool.
 
+**AR M4 precision focus** (`ar_m4`):
+- **Mechanic:** Standing still for ≥0.3s reduces spread from 4° → 1° (×0.25 multiplier). Moving resets the timer instantly. Creates a stop-and-fire micro-rhythm: quick stops for precision bursts, dash between positions.
+- **Trigger condition:** `w.id === 'ar_m4' && arStillTimer >= 0.3` in `updateFire()`. Timer increments in `move()` when no input; resets to 0 on movement.
+- **Why it fits:** AR M4 is the general-purpose rifle (cost 300, 8 fire/s, 22 dmg). Without an identity it was outclassed at every niche. Precision focus rewards positioning discipline — you can convert AR into a short-range precision weapon by micro-pausing, distinct from the sniper (long charge, massive bonus) and shotgun (always close, always spread).
+
 **MP5 run-and-gun** (`smg_mp5`):
 - **Mechanic:** +15% damage bonus while the player is actively moving (WASD held). Stops applying as soon as player stands still. Tracked via `player.isMoving` boolean set each frame in `move()`.
 - **Trigger condition:** `currentWeapon.id === 'smg_mp5' && this.isMoving` in `calcDamage()`.
