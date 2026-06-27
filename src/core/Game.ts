@@ -1594,6 +1594,23 @@ export class Game {
 
       ctx.shadowBlur = 0
 
+      // Boss wind-up telegraph: expanding danger ring when winding up to strike
+      if (z.windupActive && windupPct > 0.1) {
+        const ringR = z.radius * (1 + windupPct * 0.7)
+        const alpha = windupPct * 0.75
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.strokeStyle = T.blood
+        ctx.lineWidth = 2.5 - windupPct
+        ctx.shadowColor = T.blood
+        ctx.shadowBlur = 10
+        ctx.beginPath()
+        ctx.arc(0, 0, ringR, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
+
       // HP bar
       const hpPct = z.hp / z.maxHp
       const barY = -z.radius - 9
