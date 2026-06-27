@@ -1938,6 +1938,23 @@ export class Game {
       ctx.restore()
     }
 
+    // Sniper hold-breath charge — arc growing to full circle as charge builds
+    if (p.ownedWeapons.length > 0 && p.currentWeapon.class === 'sniperRifle' && p.holdBreathTimer > 0) {
+      const chargePct = p.holdBreathTimer / 0.4
+      const isReady = p.holdBreathReady
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.strokeStyle = isReady ? T.crystalCyan : `rgba(136,238,255,${0.5 + 0.4 * chargePct})`
+      ctx.lineWidth = isReady ? 2.5 : 1.5
+      ctx.shadowColor = T.crystalCyan
+      ctx.shadowBlur = isReady ? 14 : 6
+      ctx.beginPath()
+      ctx.arc(0, 0, 16, -Math.PI / 2, -Math.PI / 2 + chargePct * Math.PI * 2)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.restore()
+    }
+
     // AR Focus precision active — tight green ring when standing still 0.3s+
     if (p.ownedWeapons.length > 0 && p.currentWeapon.id === 'ar_m4' && p.arStillTimer >= 0.3) {
       const focusPulse = 0.55 + 0.35 * Math.abs(Math.sin(Date.now() / 200))
