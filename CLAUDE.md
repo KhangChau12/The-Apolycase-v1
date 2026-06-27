@@ -427,6 +427,12 @@ Web Audio API synthesis (no audio asset files). Initialized after first user int
 - `spawnZombieSlash(x, y, fromAngle, archetype)` — spawn vết tấn công tại vị trí target; mỗi archetype có pattern riêng: regular=3 đường song song, fast=4 đường mỏng, tank=2 đường dày+X, armored=3 ngắn+ricochet, boss=5 rộng+X lớn, healer=2 đường xanh mỏng, spitter=acid spit mark+drip dots
 - `spawnFrostPulse(x, y, radius)` — 20 ice shard particles radial từ freeze tower mỗi pulse
 - `spawnBloodSplatter(x, y, killAngle, archetype)` — extended với healer (8 particles) và spitter (10 particles, greenish)
+- `spawnBloodPool(x, y, archetype)` — GroundDecal (ellipse) tại vị trí zombie chết; 80-cap, fade in/out
+- `spawnHitSpark(x, y, hitAngle)` — 6 ember particles khi bullet hit zombie (directional)
+- `spawnCritFlash(x, y)` — 8 radial gold sparks + white center burst khi critical hit lands
+- `spawnRadialBurst(x, y)` — explosion particle ring (dùng bởi grenadeLauncher và explosive bullets)
+- `spawnLevelUpBurst(x, y)` — gold + white particle ring khi player levels up
+- `spawnTerritoryExpand(x, y, radius)` — expanding cyan ring + radial particles khi territory grows
 - `triggerDamageFlash()` / `triggerExplosionFlash()` — full-screen color overlay
 
 **`SlashEffect` struct** (internal): `strokes: SlashStroke[]`, `life`, `maxLife`, `glowColor`, `flashRadius`, `flashColor`, `impactX`, `impactY` — mỗi `SlashStroke` có `cx, cy, r, startAngle, endAngle, lineWidth, color, delay` + optional `isCrack, crackX1/Y1/X2/Y2` cho straight-line strokes
