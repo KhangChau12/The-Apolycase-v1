@@ -1187,6 +1187,35 @@ export class Game {
         ctx.shadowBlur = 0
         ctx.restore()
       }
+
+      // Muzzle flash: bright spike along fire angle when tower just fired
+      if (t.muzzleFlashTimer > 0) {
+        const flashAlpha = t.muzzleFlashTimer / 0.12
+        const flashColor = s.stroke
+        const nozzleX = t.x + Math.cos(t.muzzleFlashAngle) * 18
+        const nozzleY = t.y + Math.sin(t.muzzleFlashAngle) * 18
+        ctx.save()
+        ctx.globalAlpha = flashAlpha * 0.9
+        ctx.shadowColor = flashColor
+        ctx.shadowBlur = 14
+        ctx.strokeStyle = flashColor
+        ctx.lineWidth = 3
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        ctx.moveTo(nozzleX, nozzleY)
+        ctx.lineTo(nozzleX + Math.cos(t.muzzleFlashAngle) * 12, nozzleY + Math.sin(t.muzzleFlashAngle) * 12)
+        ctx.stroke()
+        // Cross flare
+        const perpA = t.muzzleFlashAngle + Math.PI / 2
+        ctx.lineWidth = 1.5
+        ctx.globalAlpha = flashAlpha * 0.5
+        ctx.beginPath()
+        ctx.moveTo(nozzleX + Math.cos(perpA) * 6, nozzleY + Math.sin(perpA) * 6)
+        ctx.lineTo(nozzleX - Math.cos(perpA) * 6, nozzleY - Math.sin(perpA) * 6)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
     }
   }
 

@@ -35,6 +35,8 @@ export class Tower {
   private fireCooldown = 0
   pulseRingTimer = 0
   pulseRingMax = 0
+  muzzleFlashTimer = 0       // >0 while muzzle flash should render; decays in update()
+  muzzleFlashAngle = 0       // angle toward last target when fired
 
   constructor(
     x: number,
@@ -53,6 +55,7 @@ export class Tower {
   update(dt: number, zombies: Zombie[], _base: BaseRef, bullets: Bullet[], effects?: EffectsRef): void {
     if (!this.alive) return
     if (this.fireCooldown > 0) this.fireCooldown -= dt
+    if (this.muzzleFlashTimer > 0) this.muzzleFlashTimer -= dt
 
     if (this.pulseRingTimer > 0) this.pulseRingTimer -= dt
 
@@ -108,6 +111,8 @@ export class Tower {
 
     bullets.push(fireball)
     this.fireCooldown = 1 / fireRate
+    this.muzzleFlashTimer = 0.12
+    this.muzzleFlashAngle = angle
   }
 
   private updateElectricTower(zombies: Zombie[], effects?: EffectsRef): void {
@@ -171,6 +176,8 @@ export class Tower {
 
     bullets.push(b)
     this.fireCooldown = 1 / fireRate
+    this.muzzleFlashTimer = 0.06
+    this.muzzleFlashAngle = angle
   }
 
   private updateFreezeTower(zombies: Zombie[], effects?: EffectsRef): void {
@@ -205,6 +212,8 @@ export class Tower {
     b.radius = 5
     bullets.push(b)
     this.fireCooldown = 1 / this.effectiveFireRate(this.profile.fireRate)
+    this.muzzleFlashTimer = 0.1
+    this.muzzleFlashAngle = angle
   }
 
   private findNearest(zombies: Zombie[], range: number): Zombie | null {

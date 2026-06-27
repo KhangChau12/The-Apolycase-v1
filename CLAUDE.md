@@ -107,6 +107,7 @@ dropBonus: number       // additive bonus to resource drop rate (0.0–0.45)
 - freezeTower: pulse AoE slow mỗi `pulseCooldown` giây; `pulseRingTimer/pulseRingMax` drive cryo ring animation
 - poisonTower: fires Bullet với `isPoisoned=true`; collision handling in Game.ts applies `poisonStacks` to Zombie
 - `spawnTime: number` — timestamp ms khi đặt (set bởi `game.placeTower()`), dùng cho spawn scale animation
+- **`muzzleFlashTimer: number`** / **`muzzleFlashAngle: number`** — set khi tower fires (0.06–0.12s); `renderTowers()` draws a colored spike along angle; decays each frame in `tower.update()`
 - **`auraDamageBonus: number`** — fraction bonus damage từ HomeBase aura (0.0–0.25); set mỗi frame bởi `base.applyAura()`
 - **`auraRangeBonus: number`** — fraction bonus range từ HomeBase aura; reset về 0 nếu ra ngoài aura
 - Tower dùng `effectiveDamage()` và `effectiveRange()` private helpers khi bắn
