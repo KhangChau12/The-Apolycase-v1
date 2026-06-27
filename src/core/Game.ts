@@ -420,6 +420,7 @@ export class Game {
     if (this.player.pendingDodge) {
       this.player.pendingDodge = false
       this.hud.showMessage('DODGE!', T.coreBlue, 700)
+      this.audio.playDodge()
     }
     this.camera.follow(this.player.x, this.player.y, WORLD_W, WORLD_H)
 

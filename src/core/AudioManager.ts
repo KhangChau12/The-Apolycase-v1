@@ -328,4 +328,14 @@ export class AudioManager {
       this.osc(55, 20, 0.25, 0.4, t + 0.1)
     } catch { }
   }
+
+  playDodge(): void {
+    if (this.guard()) return
+    try {
+      const t = this.now()
+      // Quick airy swoosh: highpass noise burst + rising short tone
+      this.highpass(4000, 0.06, 0.15, t)
+      this.osc(600, 900, 0.04, 0.1, t, 'sine')
+    } catch { }
+  }
 }
