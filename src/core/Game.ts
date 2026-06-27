@@ -1086,13 +1086,17 @@ export class Game {
         ctx.shadowBlur = 14
       }
 
-      ctx.fillStyle = s.fill
-      ctx.strokeStyle = s.stroke
-      ctx.lineWidth = t === this.inspectedTower ? 3 : 2
-      ctx.beginPath()
-      ctx.rect(-14, -14, 28, 28)
-      ctx.fill()
-      ctx.stroke()
+      if (t.profile.type === 'fireTower') {
+        this.drawFireTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+      } else {
+        ctx.fillStyle = s.fill
+        ctx.strokeStyle = s.stroke
+        ctx.lineWidth = t === this.inspectedTower ? 3 : 2
+        ctx.beginPath()
+        ctx.rect(-14, -14, 28, 28)
+        ctx.fill()
+        ctx.stroke()
+      }
 
       ctx.shadowBlur = 0
 
@@ -1102,8 +1106,10 @@ export class Game {
       ctx.fillStyle = T.hpColor(hpPct)
       ctx.fillRect(-14, -22, 28 * hpPct, 4)
 
-      // Type icon
-      drawIcon(ctx, t.profile.type, s.stroke)
+      // Type icon (skip for fireTower — custom body already reads as a fire tower)
+      if (t.profile.type !== 'fireTower') {
+        drawIcon(ctx, t.profile.type, s.stroke)
+      }
 
       if (t.level > 1) {
         ctx.fillStyle = T.amber
@@ -1855,6 +1861,68 @@ export class Game {
   }
 
   // â"€â"€ Weapon shape renderers (ctx already translated+rotated to player) â"€â"€
+
+  private drawFireTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+    const lw = inspected ? 3 : 2
+    const pulse = Math.sin(Date.now() / 300) * 0.5 + 0.5
+
+    // Base platform: octagonal pad
+    ctx.beginPath()
+    const padR = 12
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 - Math.PI / 8
+      const x = Math.cos(a) * padR
+      const y = Math.sin(a) * padR
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    }
+    ctx.closePath()
+    ctx.fillStyle = '#1a0800'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.fill()
+    ctx.stroke()
+
+    // Side struts
+    ctx.strokeStyle = '#3a1800'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(-8, 4); ctx.lineTo(-3, -8); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(8, 4);  ctx.lineTo(3,  -8); ctx.stroke()
+
+    // Barrel nozzle pointing up
+    ctx.fillStyle = '#2a1000'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.beginPath()
+    ctx.rect(-3.5, -14, 7, 12)
+    ctx.fill()
+    ctx.stroke()
+
+    // Glowing ember tip at barrel mouth
+    const emberR = level >= 2 ? 4.5 : 3.5
+    ctx.save()
+    ctx.globalAlpha = 0.7 + pulse * 0.3
+    ctx.shadowColor = '#FF6820'
+    ctx.shadowBlur = 8 + pulse * 6
+    ctx.beginPath()
+    ctx.arc(0, -16, emberR, 0, Math.PI * 2)
+    ctx.fillStyle = level >= 3 ? '#FFEE44' : '#FF8820'
+    ctx.fill()
+    ctx.restore()
+
+    // Level 2+: flame ring around ember
+    if (level >= 2) {
+      ctx.save()
+      ctx.globalAlpha = 0.45 + pulse * 0.25
+      ctx.beginPath()
+      ctx.arc(0, -16, 7, 0, Math.PI * 2)
+      ctx.strokeStyle = '#FF6820'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    ctx.shadowBlur = 0
+  }
 
   private drawWeaponPistol(ctx: CanvasRenderingContext2D): void {
     // Slide / body
