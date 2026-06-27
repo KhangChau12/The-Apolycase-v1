@@ -1210,7 +1210,7 @@ export class Game {
       } else if (t.profile.type === 'electricTower') {
         this.drawElectricTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'machineGunTower') {
-        this.drawMachineGunTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+        this.drawMachineGunTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level, t.muzzleFlashAngle)
       } else if (t.profile.type === 'freezeTower') {
         this.drawFreezeTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'poisonTower') {
@@ -2276,7 +2276,7 @@ export class Game {
     ctx.shadowBlur = 0
   }
 
-  private drawMachineGunTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+  private drawMachineGunTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number, barrelAngle = 0): void {
     const lw = inspected ? 3 : 2
 
     // Hexagonal turret body
@@ -2312,8 +2312,10 @@ export class Game {
     ctx.beginPath(); ctx.moveTo(-9 - drumR + 1, 2); ctx.lineTo(-9 + drumR - 1, 2); ctx.stroke()
     ctx.globalAlpha = 1
 
-    // Barrel: thick stub pointing right (East)
+    // Barrel: rotates toward last target
     const barrelLen = level >= 3 ? 14 : 12
+    ctx.save()
+    ctx.rotate(barrelAngle)
     ctx.fillStyle = '#3a2000'
     ctx.strokeStyle = stroke
     ctx.lineWidth = lw
@@ -2324,7 +2326,6 @@ export class Game {
 
     // Muzzle flash ring at barrel tip
     const mx = 6 + barrelLen
-    ctx.save()
     const flashAlpha = 0.35 + Math.sin(Date.now() / 80) * 0.25
     ctx.globalAlpha = Math.max(0, flashAlpha)
     ctx.beginPath()
@@ -2333,6 +2334,8 @@ export class Game {
     ctx.shadowColor = T.amber
     ctx.shadowBlur = 6
     ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.globalAlpha = 1
     ctx.restore()
 
     ctx.shadowBlur = 0
