@@ -19,6 +19,15 @@ export class GameOverScreen {
     const baseSkillsUnlocked = g.base.appliedBaseSkills.size
     const score = Math.floor(kills * 10 + wave * 100 + p.stats.level * 50 + towersBuilt * 20 + baseSkillsUnlocked * 30)
 
+    const prevBest = parseInt(localStorage.getItem('za_best_score') ?? '0', 10)
+    const prevBestWave = parseInt(localStorage.getItem('za_best_wave') ?? '0', 10)
+    const isNewBestScore = score > prevBest
+    const isNewBestWave = wave > prevBestWave
+    if (isNewBestScore) localStorage.setItem('za_best_score', String(score))
+    if (isNewBestWave) localStorage.setItem('za_best_wave', String(wave))
+    const bestScore = isNewBestScore ? score : prevBest
+    const bestWave = isNewBestWave ? wave : prevBestWave
+
     this.el.innerHTML = `
       <div style="
         background:rgba(20,12,8,0.96);
@@ -38,9 +47,11 @@ export class GameOverScreen {
           background:rgba(139,58,42,0.15);
           border:1px solid rgba(139,58,42,0.4);
           border-radius:2px;padding:10px;
+          position:relative;
         ">
           <div style="color:${T.iron};font:9px ${T.font};letter-spacing:2px;margin-bottom:4px;">FINAL SCORE</div>
           <div id="go-score" style="color:${T.gold};font:bold 32px ${T.font};">0</div>
+          ${isNewBestScore ? `<div style="color:${T.gold};font:bold 9px ${T.font};letter-spacing:2px;margin-top:4px;">★ NEW BEST!</div>` : `<div style="color:${T.iron};font:9px ${T.font};margin-top:4px;">Best: ${bestScore.toLocaleString()}</div>`}
         </div>
 
         <!-- Stats -->
@@ -53,7 +64,7 @@ export class GameOverScreen {
         ">
           <div class="go-stat" style="animation-delay:0.2s;${statRow()}">
             <span style="color:${T.iron};">Waves survived</span>
-            <span style="color:${T.amber};">${wave}</span>
+            <span style="color:${T.amber};">${wave}${isNewBestWave ? ` <span style="color:${T.gold};font-size:9px;">★ BEST</span>` : ` <span style="color:${T.iron};font-size:9px;">(best: ${bestWave})</span>`}</span>
           </div>
           <div class="go-stat" style="animation-delay:0.4s;${statRow()}">
             <span style="color:${T.iron};">Kills</span>
