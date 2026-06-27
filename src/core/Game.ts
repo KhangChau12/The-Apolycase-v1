@@ -409,6 +409,7 @@ export class Game {
     this.pushOutOfBase(this.player)
     if (this.player.invincibleTimer > prevInvincible) {
       this.effects.triggerDamageFlash()
+      this.audio.playPlayerHurt()
     }
     this.camera.follow(this.player.x, this.player.y, WORLD_W, WORLD_H)
 

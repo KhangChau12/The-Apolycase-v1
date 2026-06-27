@@ -286,4 +286,14 @@ export class AudioManager {
       this.osc(880, 1100, 0.10, 0.25, t + 0.08)
     } catch { }
   }
+
+  playPlayerHurt(): void {
+    if (this.guard()) return
+    try {
+      const t = this.now()
+      // Sharp thud: lowpass noise burst + low osc grunt
+      this.lowpass(400, 0.08, 0.45, t)
+      this.osc(120, 60, 0.12, 0.25, t, 'sawtooth')
+    } catch { }
+  }
 }
