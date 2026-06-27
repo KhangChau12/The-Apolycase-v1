@@ -267,6 +267,7 @@ export class Player {
       b.lifesteal = this.stats.lifesteal
       b.deathMark = this.deathMarkEnabled
       b.canRicochet = this.ricochetEnabled
+      if (w.class === 'shotgun') b.knockback = 20
       // Grenade launcher bullets always explode
       if (w.class === 'grenadeLauncher') {
         b.isExplosive = true

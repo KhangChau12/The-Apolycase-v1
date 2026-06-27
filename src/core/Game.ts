@@ -466,6 +466,14 @@ export class Game {
               z.burnTimer = Math.max(z.burnTimer, 2)
               z.burnDps = Math.max(z.burnDps, this.player.acidCoatingStacks * 3)
             }
+            // Shotgun knockback: push zombie away from bullet travel direction
+            if (b.knockback > 0 && z.alive) {
+              const bLen = Math.sqrt(b.vx * b.vx + b.vy * b.vy)
+              if (bLen > 0) {
+                z.x += (b.vx / bLen) * b.knockback
+                z.y += (b.vy / bLen) * b.knockback
+              }
+            }
           }
           // Poison tower bullet
           if (b.isPoisoned) {

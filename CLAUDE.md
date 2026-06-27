@@ -219,6 +219,14 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 | rl_m79 | grenadeLauncher | 55 | 0.8 | 2° | 2.6s | 6 | 900 | 420 | 4.0 | 0.18s |
 | rifle_dsr | marksmanRifle | 75 | 2.0 | 1.2° | 2.2s | 12 | 2200 | 500 | 1.8 | 0.09s |
 
+### Weapon Special Mechanics
+
+**Shotgun knockback** (`shotgun_870`):
+- **Mechanic:** Each shotgun pellet that hits a zombie applies a small knockback impulse (20px) away from the bullet direction. Multiple pellets hitting the same zombie in one blast stack — a center-mass hit from ~5 pellets pushes ~80-100px total; spread reduces outer pellet contribution. `b.knockback = 20` set on each pellet bullet in Player.ts.
+- **Trigger condition:** `b.weaponClass === 'shotgun'` on bullet hit in Game.ts bullet collision loop; apply push on `zombie.x/y` proportional to hit count.
+- **Implementation:** `Bullet` gets a `knockback: number` field (default 0). Shotgun bullets set `knockback = 40`. Game.ts bullet-hit handler accumulates pushes per zombie per frame using a `Map<Zombie, {x,y}>`, then applies them after the bullet loop.
+- **Why it fits:** Shotgun is the most expensive close-range weapon (cost 180, damage 12×8 at 0.8/s). Knockback lets skilled players use it as a crowd-control tool — push zombies away from the base entrance, buy time, create space. This is a **different decision** than any other weapon: the AR kills faster, the shotgun buys distance. Cost is low (180) so the mechanic unlocks early as a positioning tool.
+
 ---
 
 ## Skill System
