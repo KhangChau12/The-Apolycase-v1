@@ -411,6 +411,10 @@ export class Game {
       this.effects.triggerDamageFlash()
       this.audio.playPlayerHurt()
     }
+    if (this.player.pendingDodge) {
+      this.player.pendingDodge = false
+      this.hud.showMessage('DODGE!', T.coreBlue, 700)
+    }
     this.camera.follow(this.player.x, this.player.y, WORLD_W, WORLD_H)
 
     for (const b of this.bullets) b.update(dt)

@@ -44,6 +44,7 @@ export class Player {
   y: number
   angle = 0
   invincibleTimer = 0
+  pendingDodge = false    // set true when dodge triggers; consumed by Game.ts for visual/audio
 
   stats: PlayerStats = {
     maxHp: 100,
@@ -435,7 +436,10 @@ export class Player {
   takeDamage(amount: number): void {
     if (this.invincibleTimer > 0) return
     // Dodge chance: skip the hit entirely
-    if (this.stats.dodgeChance > 0 && Math.random() < this.stats.dodgeChance) return
+    if (this.stats.dodgeChance > 0 && Math.random() < this.stats.dodgeChance) {
+      this.pendingDodge = true
+      return
+    }
     const reduced = Math.max(1, amount - this.stats.armor)
     this.stats.hp = Math.max(0, this.stats.hp - reduced)
     this.invincibleTimer = 0.8
