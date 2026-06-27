@@ -2183,7 +2183,8 @@ export class Game {
         continue
       }
 // Light streak â€" two-pass (glow + core)
-      const sk = (b.weaponClass && BULLET_STREAK[b.weaponClass]) ? BULLET_STREAK[b.weaponClass] : DEFAULT_STREAK
+      const baseSk = (b.weaponClass && BULLET_STREAK[b.weaponClass]) ? BULLET_STREAK[b.weaponClass] : DEFAULT_STREAK
+      const sk = b.hasRichocheted ? { len: baseSk.len * 0.8, w: baseSk.w, color: 'rgba(180,130,255,1.0)', glow: 'rgba(140,80,255,0.55)' } : baseSk
       const tailX = b.x - Math.cos(b.angle) * sk.len
       const tailY = b.y - Math.sin(b.angle) * sk.len
       ctx.lineCap = 'round'
