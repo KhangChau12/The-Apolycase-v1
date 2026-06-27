@@ -173,9 +173,10 @@ function polyRoundRect(w: number, h: number, cr: number): [number, number][] {
 
 function regularSkel(r: number, tier: number): LimbSegment[] {
   const gc = ['', '#4a8a20', '#88FF44', '#BBFF66'][Math.min(tier, 3)]
-  const gbl = [0, 6, 10, 14][Math.min(tier, 3)]
+  const gbl = [0, 5, 8, 10][Math.min(tier, 3)]
   const eyeC = tier >= 2 ? '#CCFF44' : '#88FF44'
   const stroke = tier >= 2 ? '#88FF44' : '#5C2A1A'
+  const bodyFill = tier >= 2 ? '#1e1408' : '#2a1a0a'
 
   const eyes: LimbSegment[] = [
     seg('eye_l', 'circle', -r * 0.26, -r * 0.85, r * 0.14, 0, eyeC, 0, tier >= 1 ? { glow: eyeC, glowBlur: 5 } : {}),
@@ -205,16 +206,22 @@ function regularSkel(r: number, tier: number): LimbSegment[] {
     }
   }
 
-  const body = seg('body', 'circle', 0, 0, r, 0, '#2a1a0a', 0, {
+  // Glow ring drawn separately (stroke-only) so shadowBlur doesn't flood the body fill
+  const glowRings: LimbSegment[] = tier > 0 ? [
+    seg('glow_ring', 'circle', 0, 0, r, 0, 'transparent', 0, {
+      strokeColor: gc, strokeWidth: 1.5,
+      glow: gc, glowBlur: gbl,
+    })
+  ] : []
+
+  const body = seg('body', 'circle', 0, 0, r, 0, bodyFill, 0, {
     strokeColor: stroke,
     strokeWidth: tier >= 3 ? 2 : 1.5,
-    glow: tier > 0 ? gc : undefined,
-    glowBlur: gbl,
   })
 
   const head = seg('head', 'circle', 0, -r * 0.85, r * 0.34, 0, '#3a2010')
 
-  return [...spikes, body, head, ...arms, ...eyes]
+  return [...spikes, ...glowRings, body, head, ...arms, ...eyes]
 }
 
 // ── FAST skeletons ────────────────────────────────────────────────────────────
