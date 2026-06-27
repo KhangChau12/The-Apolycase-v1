@@ -1722,6 +1722,26 @@ export class Game {
         ctx.restore()
       }
 
+      // DSR target lock reticle — shows lock progress on current combo target
+      const p2 = this.player
+      if (p2.ownedWeapons.length > 0 && p2.currentWeapon.id === 'rifle_dsr' && p2.dsrComboTarget === z && p2.dsrComboCount > 0) {
+        const lockPct = p2.dsrComboBonus ? 1 : p2.dsrComboCount / 3
+        const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 90)
+        ctx.save()
+        ctx.globalAlpha = pulse
+        ctx.strokeStyle = p2.dsrComboBonus ? T.gold : T.amber
+        ctx.lineWidth = p2.dsrComboBonus ? 2.5 : 1.5
+        ctx.shadowColor = p2.dsrComboBonus ? T.gold : T.amber
+        ctx.shadowBlur = p2.dsrComboBonus ? 16 : 8
+        // Arc showing lock progress (full circle when ready)
+        ctx.beginPath()
+        ctx.arc(0, 0, z.radius + 5, -Math.PI / 2, -Math.PI / 2 + lockPct * Math.PI * 2)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+        ctx.restore()
+      }
+
       // HP bar
       const hpPct = z.hp / z.maxHp
       const barY = -z.radius - 9
