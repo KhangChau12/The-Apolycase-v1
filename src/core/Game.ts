@@ -2186,9 +2186,15 @@ export class Game {
     ctx.lineWidth = 2
     ctx.strokeRect(mx, my, mw, mh)
 
-    // Territory ring
+    // Territory hexagon (matches world view shape)
+    const tcx = mx + BASE_X * sx, tcy = my + BASE_Y * sy, tr2 = this.territory.radius * sx
     ctx.beginPath()
-    ctx.arc(mx + BASE_X * sx, my + BASE_Y * sy, this.territory.radius * sx, 0, Math.PI * 2)
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6
+      const hx = tcx + Math.cos(a) * tr2, hy = tcy + Math.sin(a) * tr2
+      if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy)
+    }
+    ctx.closePath()
     ctx.strokeStyle = 'rgba(196,98,45,0.6)'
     ctx.lineWidth = 1
     ctx.stroke()
