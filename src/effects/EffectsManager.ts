@@ -291,6 +291,25 @@ export class EffectsManager {
     }
   }
 
+  spawnAmbientEmber(baseX: number, baseY: number): void {
+    // Spawn 1-2 tiny embers randomly within ~200px of the base, drifting upward
+    const count = Math.random() < 0.4 ? 2 : 1
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const dist  = 40 + Math.random() * 160
+      const x = baseX + Math.cos(angle) * dist
+      const y = baseY + Math.sin(angle) * dist
+      const color = Math.random() < 0.6 ? T.ember : T.amber
+      this.particles.push(new Particle(x, y, color, 0.8 + Math.random() * 1.2, 8 + Math.random() * 14, {
+        dirAngle: -Math.PI / 2,   // upward
+        spread: 0.8,
+        gravity: -12,             // gentle negative gravity = floats up
+        sizeDecay: 1.5,
+        life: 1.2 + Math.random() * 1.4,
+      }))
+    }
+  }
+
   spawnFireTrail(x: number, y: number, angle: number): void {
     const backAngle = angle + Math.PI
     for (let i = 0; i < 3; i++) {

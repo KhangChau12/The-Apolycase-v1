@@ -66,7 +66,7 @@ export const TOWER_PROFILES: Record<TowerType, TowerProfile> = {
     range: 150,
     damage: 0,
     fireRate: 0,
-    description: 'Spawns a worker drone that walks to damaged towers and repairs them.',
+    description: 'Spawns 3 worker drones that patrol and repair damaged towers in range.',
   },
   machineGunTower: {
     type: 'machineGunTower',

@@ -95,6 +95,7 @@ export class Game {
   private shakeDuration = 0
   private shakeMaxDuration = 0
   private shakeIntensity = 0
+  private ambientEmberTimer = 0
   readonly audio = new AudioManager()
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -395,6 +396,13 @@ export class Game {
 
   private update(dt: number): void {
     if (this.shakeDuration > 0) this.shakeDuration -= dt
+
+    // Ambient embers near base — spawn periodically for environmental life
+    this.ambientEmberTimer -= dt
+    if (this.ambientEmberTimer <= 0) {
+      this.effects.spawnAmbientEmber(BASE_X, BASE_Y)
+      this.ambientEmberTimer = 0.25 + Math.random() * 0.2
+    }
 
     const prevInvincible = this.player.invincibleTimer
     this.player.update(dt, this.input, this.camera, this)
