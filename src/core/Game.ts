@@ -718,6 +718,7 @@ export class Game {
         this.territory.expand()
         this.hud.showMessage(`Boss defeated! +1 Crystal -- Territory expanded to ${this.territory.radius}px`, T.gold, 3500)
         this.effects.triggerExplosionFlash()
+        this.effects.spawnTerritoryExpand(BASE_X, BASE_Y, this.territory.radius)
       }
       this.enterBreak()
     }

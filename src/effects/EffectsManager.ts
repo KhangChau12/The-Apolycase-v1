@@ -649,6 +649,23 @@ export class EffectsManager {
     }
   }
 
+  spawnTerritoryExpand(cx: number, cy: number, radius: number): void {
+    const count = 48
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2
+      const x = cx + Math.cos(angle) * radius
+      const y = cy + Math.sin(angle) * radius
+      const color = i % 3 === 0 ? T.crystalCyan : i % 3 === 1 ? T.gold : T.amber
+      this.particles.push(new Particle(x, y, color, 3 + Math.random() * 4, 30 + Math.random() * 50, {
+        dirAngle: angle,
+        spread: 0.4,
+        gravity: -5,
+        sizeDecay: 3,
+        life: 1.2 + Math.random() * 0.8,
+      }))
+    }
+  }
+
   spawnLevelUpBurst(x: number, y: number): void {
     const colors = [T.gold, T.amber, '#FFFFFF', T.crystalCyan]
     for (let i = 0; i < 24; i++) {
