@@ -599,7 +599,7 @@ export const BASE_SKILL_TREE: BaseSkillTreeNode[] = [
     requiresSkill: ['fireTowerInferno', 'electricTowerEMP'],
     branch: 'tech',
     x: 2240, y: 400,
-    apply: (b) => { b.synergyEngineEnabled = true },
+    apply: (b) => { b.synergyEngineEnabled = true; b.towerFireRateAura = 0.15 },
   },
   {
     id: 'towerNetworkSync',
