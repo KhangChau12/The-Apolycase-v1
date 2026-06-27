@@ -550,12 +550,19 @@ export class HUD {
     const ammoLabel = this.el.querySelector('#hud-ammo-label') as HTMLElement | null
     {
       const slot = p.ownedWeapons[p.activeWeaponIndex]
+      const isSniperCharging = p.currentWeapon.class === 'sniperRifle' && p.holdBreathTimer > 0
       if (p.reloading) {
         const elapsed = p.currentWeapon.reloadTime - p.reloadTimer
         const reloadPct = Math.min(1, elapsed / p.currentWeapon.reloadTime)
         if (ammoFill)  { ammoFill.style.width = `${reloadPct * 100}%`; ammoFill.style.background = T.amber }
         if (ammoLabel) ammoLabel.textContent = 'RLD'
         if (ammoVal)   { ammoVal.textContent = ''; ammoVal.style.display = 'none' }
+      } else if (isSniperCharging) {
+        const chargePct = Math.min(1, p.holdBreathTimer / 0.4)
+        const chargeColor = p.holdBreathReady ? T.gold : 'rgba(255,255,255,0.85)'
+        if (ammoFill)  { ammoFill.style.width = `${chargePct * 100}%`; ammoFill.style.background = chargeColor }
+        if (ammoLabel) ammoLabel.textContent = p.holdBreathReady ? 'FIRE' : 'AIM'
+        if (ammoVal)   { ammoVal.style.display = 'inline'; ammoVal.textContent = p.holdBreathReady ? '★' : '…'; ammoVal.style.color = p.holdBreathReady ? T.gold : T.bg }
       } else {
         const magPct = slot.profile.magSize > 0 ? slot.ammoInMag / slot.profile.magSize : 0
         const isEmpty = slot.ammoInMag === 0
