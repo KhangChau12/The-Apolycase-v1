@@ -232,6 +232,12 @@ export class Game {
     if (this.base.garrisonTitanEnabled && this.waveManager.waveIndex % 3 === 0) {
       this.garrisonUnits.push(new GarrisonUnit(BASE_X + 70, BASE_Y - 70, 'titan', GARRISON_PROFILES.titan, this.base.garrisonHpMult, this.base.garrisonDamageMult))
     }
+    if (this.garrisonUnits.length > 0) {
+      const hasTitan = this.garrisonUnits.some(u => u.type === 'titan')
+      const label = hasTitan ? 'Garrison deployed — TITAN included!' : `Garrison deployed (${this.garrisonUnits.length} units)`
+      this.hud.showMessage(label, '#4488FF', 2000)
+      this.audio.playWaveStart()
+    }
   }
 
   skipBreak(): void {
