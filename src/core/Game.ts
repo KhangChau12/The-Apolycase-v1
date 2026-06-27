@@ -1092,6 +1092,8 @@ export class Game {
         this.drawElectricTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else if (t.profile.type === 'machineGunTower') {
         this.drawMachineGunTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+      } else if (t.profile.type === 'freezeTower') {
+        this.drawFreezeTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else {
         ctx.fillStyle = s.fill
         ctx.strokeStyle = s.stroke
@@ -1111,7 +1113,7 @@ export class Game {
       ctx.fillRect(-14, -22, 28 * hpPct, 4)
 
       // Type icon (skip towers with custom body renderers)
-      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower' && t.profile.type !== 'machineGunTower') {
+      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower' && t.profile.type !== 'machineGunTower' && t.profile.type !== 'freezeTower') {
         drawIcon(ctx, t.profile.type, s.stroke)
       }
 
@@ -2052,6 +2054,67 @@ export class Game {
     ctx.shadowColor = T.amber
     ctx.shadowBlur = 6
     ctx.fill()
+    ctx.restore()
+
+    ctx.shadowBlur = 0
+  }
+
+  private drawFreezeTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+    const lw = inspected ? 3 : 2
+    const pulse = Math.sin(Date.now() / 500) * 0.5 + 0.5
+
+    // Outer dish ring
+    ctx.beginPath()
+    ctx.arc(0, 0, 12, 0, Math.PI * 2)
+    ctx.fillStyle = '#080e1a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.fill()
+    ctx.stroke()
+
+    // Ice crystal spines: 4 (or 6 at level 3) radiating outward
+    const spineCount = level >= 3 ? 6 : 4
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 1.5
+    for (let i = 0; i < spineCount; i++) {
+      const a = (i / spineCount) * Math.PI * 2 - Math.PI / 4
+      const innerR = 5
+      const outerR = 14
+      const sx = Math.cos(a) * innerR
+      const sy = Math.sin(a) * innerR
+      const ex = Math.cos(a) * outerR
+      const ey = Math.sin(a) * outerR
+      ctx.beginPath()
+      ctx.moveTo(sx, sy)
+      ctx.lineTo(ex, ey)
+      ctx.stroke()
+      // Diamond tip at spine end
+      ctx.save()
+      ctx.translate(ex, ey)
+      ctx.rotate(a)
+      ctx.fillStyle = level >= 2 ? '#CCFFFF' : stroke
+      ctx.beginPath()
+      ctx.moveTo(0, -2.5)
+      ctx.lineTo(1.5, 0)
+      ctx.lineTo(0, 2.5)
+      ctx.lineTo(-1.5, 0)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    }
+
+    // Cryo core: inner glowing circle
+    const coreR = level >= 2 ? 4.5 : 3.5
+    ctx.save()
+    ctx.shadowColor = stroke
+    ctx.shadowBlur = 8 + pulse * 6
+    ctx.beginPath()
+    ctx.arc(0, 0, coreR, 0, Math.PI * 2)
+    ctx.fillStyle = level >= 3 ? '#CCFFFF' : '#0a2a3a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 1.5
+    ctx.fill()
+    ctx.stroke()
     ctx.restore()
 
     ctx.shadowBlur = 0
