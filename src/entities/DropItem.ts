@@ -9,7 +9,7 @@ export class DropItem {
   crystal: boolean
   ammo: number
   picked = false
-  private lifetime = 20
+  lifetime = 20
 
   // Magnet state — set by Game when item enters attract range
   private magnetVx = 0

@@ -2027,8 +2027,13 @@ export class Game {
     const now = Date.now()
     for (const d of this.drops) {
       if (d.picked) continue
+      const expiring = d.lifetime < 5
+      // Flicker when about to expire (last 5s)
+      if (expiring && Math.sin(now / 80) < 0) continue
       const bob = Math.sin(now / 350 + d.x * 0.05) * 2.5
+      const globalAlpha = expiring ? Math.max(0.3, d.lifetime / 5) : 1
       ctx.save()
+      ctx.globalAlpha = globalAlpha
       ctx.translate(d.x, d.y + bob)
       const color = d.crystal
         ? T.crystalCyan
@@ -2043,7 +2048,7 @@ export class Game {
       ctx.arc(0, 0, 6, 0, Math.PI * 2)
       ctx.fill()
       // inner bright core
-      ctx.globalAlpha = 0.6 + 0.3 * Math.sin(now / 200 + d.x)
+      ctx.globalAlpha = globalAlpha * (0.6 + 0.3 * Math.sin(now / 200 + d.x))
       ctx.fillStyle = '#ffffff'
       ctx.shadowBlur = 0
       ctx.beginPath()
