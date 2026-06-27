@@ -82,7 +82,8 @@ export class Player {
   berserkerTimer = 0
 
   // Overcharge: true right after a reload finishes
-  private overchargeReady = false
+  private _overchargeReady = false
+  get overchargeReady(): boolean { return this._overchargeReady }
 
   // v1.7 skill flags
   acidCoatingEnabled = false
@@ -342,7 +343,7 @@ export class Player {
       this.ammoInMag--
     }
 
-    this.overchargeReady = false
+    this._overchargeReady = false
     // Reset sniper hold-breath after firing
     if (w.class === 'sniperRifle') {
       this.holdBreathTimer = 0
@@ -385,7 +386,7 @@ export class Player {
     this.ammoInMag += refill
     this.reserveAmmo -= refill
     this.reloading = false
-    if (this.overchargeEnabled) this.overchargeReady = true
+    if (this.overchargeEnabled) this._overchargeReady = true
   }
 
   private calcDamage(): number {

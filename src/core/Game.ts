@@ -1894,6 +1894,28 @@ export class Game {
       ctx.globalAlpha = 1
       ctx.restore()
     }
+
+    // Overcharge ready aura — white/cyan spinning dashes
+    if (p.overchargeEnabled && p.overchargeReady) {
+      const now = Date.now()
+      const spin = (now / 600) % (Math.PI * 2)
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate(spin)
+      ctx.strokeStyle = '#CCFFFF'
+      ctx.lineWidth = 2
+      ctx.shadowColor = '#AAEEFF'
+      ctx.shadowBlur = 12
+      ctx.globalAlpha = 0.75 + 0.2 * Math.sin(now / 100)
+      ctx.setLineDash([6, 6])
+      ctx.beginPath()
+      ctx.arc(0, 0, 22, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+      ctx.restore()
+    }
   }
 
   // â"€â"€ Bullets / Drops / Particles â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
