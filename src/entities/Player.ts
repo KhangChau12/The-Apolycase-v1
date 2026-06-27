@@ -102,6 +102,9 @@ export class Player {
   holdBreathReady = false
   private static readonly HOLD_BREATH_CHARGE = 0.4
 
+  // MP5 run-and-gun: true when player moved this frame
+  isMoving = false
+
   // Weapon inventory — slots preserve per-weapon ammo
   private weaponSlots: WeaponSlot[] = []
   private activeSlotIndex = 0
@@ -220,6 +223,7 @@ export class Player {
     if (input.isDown('KeyA') || input.isDown('ArrowLeft')) dx -= 1
     if (input.isDown('KeyD') || input.isDown('ArrowRight')) dx += 1
     const len = Math.sqrt(dx * dx + dy * dy)
+    this.isMoving = len > 0
     if (len > 0) {
       dx /= len; dy /= len
     }
@@ -387,6 +391,11 @@ export class Player {
       base *= 3
       this.executionerReady = false
       this.executionerTimer = 0
+    }
+
+    // MP5 run-and-gun: +15% damage while moving (mobile suppressor archetype)
+    if (this.currentWeapon.id === 'smg_mp5' && this.isMoving) {
+      base = Math.floor(base * 1.15)
     }
 
     const crit = Math.random() < this.stats.critChance

@@ -227,11 +227,22 @@ Interface thêm 2 fields: `shakeIntensity: number`, `shakeDuration: number` — 
 - **Implementation:** `Player.holdBreathTimer`, `holdBreathReady` fields (only active when currentWeapon is sniperRifle). Speed penalty applied in `effectiveSpeed` getter. Spread override in `calcSpread()` helper at fire time.
 - **Why it fits:** Sniper costs 550 (most expensive weapon). Its 0.5/s fire rate already means deliberate aim. Hold-breath rewards patience: stop moving for 0.4s to get a guaranteed perfect shot. This is the exact opposite of SMG's spray-and-pray, and creates real decisions (am I safe enough to stop moving?). No other weapon interacts with player speed mid-combat.
 
+**Grenade Launcher self-damage** (`rl_m79`):
+- **Mechanic:** When a GL grenade explodes (AoE splash triggers), if the player is within the splash radius (70px), player takes `explosion.damage * 0.15` self-damage (ignores armor). Creates genuine risk: GL is powerful AoE but punishes close-range use. Player must maintain distance or take chip damage.
+- **Trigger condition:** In Game.ts `isExplosive` branch, after dealing splash to zombies, check `dist(b.x, b.y, player.x, player.y) < splashR`. If so, apply `player.takeDamage(b.damage * 0.15, true)` with `ignoreArmor=true`.
+- **Implementation:** `Player.takeDamage()` already exists. Need to add `ignoreArmor` param (or just subtract directly from `stats.hp`). `Bullet` owner check: only applies for `b.owner === 'player'` grenades, not tower fireballs.
+- **Why it fits:** GL costs 420 (same as Vector). The GL already has low fire rate (0.8/s) and slow bullet speed (900). Self-damage adds one more constraint: range requirement. Now the weapon has a clear identity — long-range AoE demolisher, not a close-range spray replacement. Pairs interestingly with `lastStand` (risky but high reward at low HP).
+
 **Shotgun knockback** (`shotgun_870`):
 - **Mechanic:** Each shotgun pellet that hits a zombie applies a small knockback impulse (20px) away from the bullet direction. Multiple pellets hitting the same zombie in one blast stack — a center-mass hit from ~5 pellets pushes ~80-100px total; spread reduces outer pellet contribution. `b.knockback = 20` set on each pellet bullet in Player.ts.
 - **Trigger condition:** `b.weaponClass === 'shotgun'` on bullet hit in Game.ts bullet collision loop; apply push on `zombie.x/y` proportional to hit count.
 - **Implementation:** `Bullet` gets a `knockback: number` field (default 0). Shotgun bullets set `knockback = 40`. Game.ts bullet-hit handler accumulates pushes per zombie per frame using a `Map<Zombie, {x,y}>`, then applies them after the bullet loop.
 - **Why it fits:** Shotgun is the most expensive close-range weapon (cost 180, damage 12×8 at 0.8/s). Knockback lets skilled players use it as a crowd-control tool — push zombies away from the base entrance, buy time, create space. This is a **different decision** than any other weapon: the AR kills faster, the shotgun buys distance. Cost is low (180) so the mechanic unlocks early as a positioning tool.
+
+**MP5 run-and-gun** (`smg_mp5`):
+- **Mechanic:** +15% damage bonus while the player is actively moving (WASD held). Stops applying as soon as player stands still. Tracked via `player.isMoving` boolean set each frame in `move()`.
+- **Trigger condition:** `currentWeapon.id === 'smg_mp5' && this.isMoving` in `calcDamage()`.
+- **Why it fits:** MP5 is the affordable mid-range suppressor (cost 220). Run-and-gun rewards an aggressive mobile playstyle — kite zombies while firing, stay mobile between bursts. Contrasts with the sniper (slow+aim for power) and AR (stable platform accuracy). The bonus is applied in `calcDamage()` after all other multipliers but before crit roll.
 
 ---
 
