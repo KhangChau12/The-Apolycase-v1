@@ -44,6 +44,16 @@ interface GroundDecal {
   maxLife: number
 }
 
+interface FloatingText {
+  x: number; y: number
+  text: string
+  color: string
+  size: number       // font size px
+  life: number
+  maxLife: number
+  vy: number         // vertical drift speed (negative = upward)
+}
+
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
   return t * t * (3 - 2 * t)
@@ -54,6 +64,7 @@ export class EffectsManager {
   private lightnings: LightningEffect[] = []
   private slashes: SlashEffect[] = []
   private decals: GroundDecal[] = []
+  private floatingTexts: FloatingText[] = []
   private screenFlashAlpha = 0
   private screenFlashColor = '204,26,26'
 
@@ -68,6 +79,9 @@ export class EffectsManager {
     for (const d of this.decals) d.life -= dt
     this.decals = this.decals.filter(d => d.life > 0)
     if (this.decals.length > 80) this.decals.splice(0, 10)
+    for (const ft of this.floatingTexts) { ft.life -= dt; ft.y += ft.vy * dt }
+    this.floatingTexts = this.floatingTexts.filter(ft => ft.life > 0)
+    if (this.floatingTexts.length > 60) this.floatingTexts.splice(0, 10)
     if (this.screenFlashAlpha > 0) this.screenFlashAlpha = Math.max(0, this.screenFlashAlpha - dt * 1.8)
   }
 
@@ -244,6 +258,21 @@ export class EffectsManager {
 
       ctx.restore()
     }
+
+    // Floating damage numbers
+    for (const ft of this.floatingTexts) {
+      const alpha = Math.min(1, ft.life / ft.maxLife * 2.5)
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.font = `bold ${ft.size}px ${T.font}`
+      ctx.textAlign = 'center'
+      ctx.fillStyle = ft.color
+      ctx.shadowColor = 'rgba(0,0,0,0.7)'
+      ctx.shadowBlur = 3
+      ctx.fillText(ft.text, ft.x, ft.y)
+      ctx.shadowBlur = 0
+      ctx.restore()
+    }
   }
 
   renderScreen(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -253,6 +282,21 @@ export class EffectsManager {
     ctx.fillStyle = `rgb(${this.screenFlashColor})`
     ctx.fillRect(0, 0, w, h)
     ctx.restore()
+  }
+
+  spawnDamageNumber(x: number, y: number, dmg: number, isCrit: boolean): void {
+    const size = isCrit ? 16 : 11
+    const color = isCrit ? T.gold : T.bg
+    const offsetX = (Math.random() - 0.5) * 14
+    this.floatingTexts.push({
+      x: x + offsetX, y: y - 8,
+      text: dmg.toString(),
+      color,
+      size,
+      life: isCrit ? 0.85 : 0.55,
+      maxLife: isCrit ? 0.85 : 0.55,
+      vy: isCrit ? -38 : -28,
+    })
   }
 
   spawnCritFlash(x: number, y: number): void {

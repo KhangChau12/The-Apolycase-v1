@@ -537,6 +537,10 @@ export class Game {
           }
           this.audio.playZombieHit(z.archetype)
           this.effects.spawnHitSpark(z.x, z.y, hitAngle)
+          // Damage numbers: show for all player bullets except rapid-fire SMG (too spammy)
+          if (b.owner === 'player' && b.weaponClass !== 'smg' && (b.weaponClass !== 'shotgun' || b.isCrit)) {
+            this.effects.spawnDamageNumber(z.x, z.y, dmg, b.isCrit)
+          }
           if (b.isCrit) this.effects.spawnCritFlash(z.x, z.y)
           // Executioner: check if zombie will die and was below 30% HP
           if (!z.alive && b.owner === 'player' && z.hp + dmg < z.maxHp * 0.30) {
