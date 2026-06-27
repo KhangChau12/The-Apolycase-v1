@@ -1088,6 +1088,8 @@ export class Game {
 
       if (t.profile.type === 'fireTower') {
         this.drawFireTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
+      } else if (t.profile.type === 'electricTower') {
+        this.drawElectricTowerBody(ctx, s.stroke, t === this.inspectedTower, t.level)
       } else {
         ctx.fillStyle = s.fill
         ctx.strokeStyle = s.stroke
@@ -1106,8 +1108,8 @@ export class Game {
       ctx.fillStyle = T.hpColor(hpPct)
       ctx.fillRect(-14, -22, 28 * hpPct, 4)
 
-      // Type icon (skip for fireTower — custom body already reads as a fire tower)
-      if (t.profile.type !== 'fireTower') {
+      // Type icon (skip towers with custom body renderers)
+      if (t.profile.type !== 'fireTower' && t.profile.type !== 'electricTower') {
         drawIcon(ctx, t.profile.type, s.stroke)
       }
 
@@ -1918,6 +1920,73 @@ export class Game {
       ctx.strokeStyle = '#FF6820'
       ctx.lineWidth = 1.5
       ctx.stroke()
+      ctx.restore()
+    }
+
+    ctx.shadowBlur = 0
+  }
+
+  private drawElectricTowerBody(ctx: CanvasRenderingContext2D, stroke: string, inspected: boolean, level: number): void {
+    const lw = inspected ? 3 : 2
+    const t = Date.now() / 200
+    const pulse = Math.sin(t) * 0.5 + 0.5
+
+    // Narrow column body
+    ctx.fillStyle = '#0a0e1a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lw
+    ctx.beginPath()
+    ctx.rect(-4, -10, 8, 20)
+    ctx.fill()
+    ctx.stroke()
+
+    // Wide base foot
+    ctx.beginPath()
+    ctx.rect(-10, 8, 20, 5)
+    ctx.fill()
+    ctx.stroke()
+
+    // Side discharge prongs (horizontal arms)
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-12, -6); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(4,  -6); ctx.lineTo(12,  -6); ctx.stroke()
+    // Prong tips (small circles)
+    ctx.fillStyle = stroke
+    ctx.beginPath(); ctx.arc(-12, -6, 2, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(12,  -6, 2, 0, Math.PI * 2); ctx.fill()
+
+    // Tesla ball on top
+    const ballR = level >= 2 ? 6 : 5
+    ctx.save()
+    ctx.shadowColor = stroke
+    ctx.shadowBlur = 10 + pulse * 8
+    ctx.beginPath()
+    ctx.arc(0, -14, ballR, 0, Math.PI * 2)
+    ctx.fillStyle = level >= 3 ? '#CCFFFF' : '#0a0e1a'
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = 2
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
+
+    // Electric arc sparks (level 2+): 3 short jagged lines from ball
+    if (level >= 2) {
+      ctx.save()
+      ctx.globalAlpha = 0.5 + pulse * 0.4
+      ctx.strokeStyle = '#FFFFFF'
+      ctx.lineWidth = 0.8
+      ctx.shadowColor = stroke
+      ctx.shadowBlur = 4
+      const arcAngles = [-0.8, 0, 0.8]
+      for (const ang of arcAngles) {
+        const sx = Math.cos(ang - Math.PI / 2) * ballR
+        const sy = -14 + Math.sin(ang - Math.PI / 2) * ballR
+        ctx.beginPath()
+        ctx.moveTo(sx, sy)
+        ctx.lineTo(sx + Math.cos(ang) * 5, sy + Math.sin(ang) * 5)
+        ctx.stroke()
+      }
       ctx.restore()
     }
 
