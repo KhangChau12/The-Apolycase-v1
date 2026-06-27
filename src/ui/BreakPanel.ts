@@ -305,6 +305,7 @@ export class BreakPanel {
                 { icon: 'zap',        val: `${p.stats.damage}`,                         color: T.amber },
                 { icon: 'shield',     val: `${p.stats.armor}`,                          color: T.coreBlue },
                 { icon: 'eye',        val: `${Math.round(p.stats.critChance*100)}%`,     color: T.crystalCyan },
+                { icon: 'star',       val: `Lv${p.stats.level} · ${p.stats.xp}/${p.stats.xpToNext} XP`, color: T.gold },
               ].map(s => `
                 <div style="
                   display:flex;align-items:center;gap:4px;
