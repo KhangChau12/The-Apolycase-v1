@@ -1376,6 +1376,23 @@ export class Game {
         ctx.globalAlpha = 1
       }
 
+      // Heavy slow field aura ring when frost stomp skill active
+      if (u.type === 'heavy' && this.base.heavySlowFieldEnabled) {
+        const frozenPulse = 0.08 + 0.05 * Math.sin(Date.now() / 400)
+        ctx.strokeStyle = '#88CCFF'
+        ctx.lineWidth = 1
+        ctx.shadowColor = '#44AAFF'
+        ctx.shadowBlur = 8
+        ctx.globalAlpha = frozenPulse * 2
+        ctx.setLineDash([5, 5])
+        ctx.beginPath()
+        ctx.arc(0, 0, 120, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+      }
+
       if (u.stompPulseTimer > 0) {
         const progress = 1 - u.stompPulseTimer / u.stompPulseMax
         const ringR = r * (1.5 + progress * 3.5)
