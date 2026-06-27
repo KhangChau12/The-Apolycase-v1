@@ -301,12 +301,16 @@ export class BreakPanel {
             <!-- Stat pills row -->
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
               ${[
-                { icon: 'heart',      val: `${Math.ceil(p.stats.hp)}/${p.stats.maxHp}`, color: T.hpHigh },
-                { icon: 'zap',        val: `${p.stats.damage}`,                         color: T.amber },
-                { icon: 'shield',     val: `${p.stats.armor}`,                          color: T.coreBlue },
-                { icon: 'eye',        val: `${Math.round(p.stats.critChance*100)}%`,     color: T.crystalCyan },
-                { icon: 'star',       val: `Lv${p.stats.level} · ${p.stats.xp}/${p.stats.xpToNext} XP`, color: T.gold },
-              ].map(s => `
+                { icon: 'heart',      val: `${Math.ceil(p.stats.hp)}/${p.stats.maxHp}`, color: T.hpHigh,     show: true },
+                { icon: 'zap',        val: `${p.stats.damage}`,                         color: T.amber,      show: true },
+                { icon: 'shield',     val: `${p.stats.armor}`,                          color: T.coreBlue,   show: true },
+                { icon: 'eye',        val: `${Math.round(p.stats.critChance*100)}%`,     color: T.crystalCyan,show: true },
+                { icon: 'star',       val: `Lv${p.stats.level} · ${p.stats.xp}/${p.stats.xpToNext} XP`, color: T.gold, show: true },
+                { icon: 'activity',   val: `+${Math.round(p.stats.lifesteal*100)}% vamp`, color: '#FF6688', show: p.stats.lifesteal > 0 },
+                { icon: 'arrow-right',val: `${Math.round(p.stats.dodgeChance*100)}% dodge`, color: '#AACCFF', show: p.stats.dodgeChance > 0 },
+                { icon: 'refresh-cw', val: `×${p.stats.reloadSpeedMult.toFixed(2)} reload`, color: '#FFCC44', show: p.stats.reloadSpeedMult !== 1 },
+                { icon: 'package',    val: `+${Math.round(p.stats.dropBonus*100)}% drop`, color: T.ironGrey,  show: p.stats.dropBonus > 0 },
+              ].filter(s => s.show).map(s => `
                 <div style="
                   display:flex;align-items:center;gap:4px;
                   background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);
